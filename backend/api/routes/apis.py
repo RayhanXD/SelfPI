@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from api.models import ApiSummary, CheckApiResponse, CreateApiRequest
 from db.client import apis
 from scanner.ir.enums import ApiStatus
+from watcher import poll_api
 
 router = APIRouter(prefix="/apis", tags=["apis"])
 
@@ -68,13 +69,20 @@ def get_api(api_id: str) -> ApiSummary:
 
 @router.post("/{api_id}/check", response_model=CheckApiResponse)
 def check_api(api_id: str) -> CheckApiResponse:
-    doc = apis().find_one({"_id": api_id})
-    if not doc:
+    if not apis().find_one({"_id": api_id}):
         raise HTTPException(
             status_code=404,
             detail={"error": {"code": "not_found", "message": f"API '{api_id}' not found"}},
         )
-    # Watcher poll wired in later milestones; stub acknowledges the trigger.
-    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    apis().update_one({"_id": api_id}, {"$set": {"last_checked": now}})
-    return CheckApiResponse(checked=True, new_version=None, changes_detected=0)
+    try:
+        result = poll_api(api_id, open_pr=False, dry_run_pr=True)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"error": {"code": "poll_failed", "message": str(exc)}},
+        ) from exc
+    return CheckApiResponse(
+        checked=bool(result.get("checked")),
+        new_version=result.get("new_version"),
+        changes_detected=int(result.get("changes_detected") or 0),
+    )

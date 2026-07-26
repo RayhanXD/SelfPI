@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     github_app_installation_id: str | None = None
     github_default_base_branch: str = "main"
 
+    # Local path to the connected repo checkout (scanner target)
+    repo_path: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -131,26 +131,31 @@ def dismiss_change(change_id: str) -> ChangeSummary:
             status_code=404,
             detail={"error": {"code": "not_found", "message": f"Change '{change_id}' not found"}},
         )
+    from pipeline.process import _refresh_api_status
+
+    _refresh_api_status(result["api_id"])
     return _summary_from_doc(result)
 
 
 @router.post("/{change_id}/rescan", response_model=RescanResponse)
-def rescan_change(change_id: str) -> RescanResponse:
+def rescan_change_route(change_id: str) -> RescanResponse:
     try:
-        oid = ObjectId(change_id)
+        ObjectId(change_id)
     except Exception as exc:
         raise HTTPException(
             status_code=400,
             detail={"error": {"code": "invalid_id", "message": "Invalid change id"}},
         ) from exc
-    doc = changes().find_one({"_id": oid})
-    if not doc:
+    try:
+        from pipeline.process import rescan_change
+
+        result = rescan_change(change_id)
+    except KeyError as exc:
         raise HTTPException(
             status_code=404,
-            detail={"error": {"code": "not_found", "message": f"Change '{change_id}' not found"}},
-        )
-    changes().update_one({"_id": oid}, {"$set": {"status": ChangeStatus.SCANNING.value}})
+            detail={"error": {"code": "not_found", "message": str(exc)}},
+        ) from exc
     return RescanResponse(
-        call_site_count=len(doc.get("call_sites") or []),
-        status=ChangeStatus.SCANNING,
+        call_site_count=result["call_site_count"],
+        status=ChangeStatus(result["status"]),
     )

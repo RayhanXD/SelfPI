@@ -8,8 +8,14 @@ from fastapi import APIRouter, HTTPException
 
 from api.models import PushSpecRequest, PushSpecResponse, SpecVersionSummary
 from db.client import apis, spec_versions
+from pipeline.process import process_spec_bump
+from watcher import fingerprint as spec_fingerprint
 
 router = APIRouter(prefix="/apis", tags=["specs"])
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 @router.get("/{api_id}/spec-versions", response_model=list[SpecVersionSummary])
@@ -19,7 +25,7 @@ def list_spec_versions(api_id: str) -> list[SpecVersionSummary]:
             status_code=404,
             detail={"error": {"code": "not_found", "message": f"API '{api_id}' not found"}},
         )
-    docs = spec_versions().find({"api_id": api_id}).sort("version", -1)
+    docs = spec_versions().find({"api_id": api_id}).sort("fetched_at", -1)
     return [
         SpecVersionSummary(version=d["version"], fetched_at=d.get("fetched_at")) for d in docs
     ]
@@ -33,24 +39,24 @@ def push_spec_version(api_id: str, body: PushSpecRequest) -> PushSpecResponse:
             status_code=404,
             detail={"error": {"code": "not_found", "message": f"API '{api_id}' not found"}},
         )
-    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
     spec_versions().insert_one(
         {
             "api_id": api_id,
             "version": body.version,
-            "fetched_at": now,
+            "fetched_at": _now(),
             "spec": body.spec,
+            "fingerprint": spec_fingerprint(body.spec),
         }
     )
-    apis().update_one(
-        {"_id": api_id},
-        {
-            "$set": {
-                "current_version": body.version,
-                "last_checked": now,
-                "status": "change_detected",
-            }
-        },
+    result = process_spec_bump(
+        api_id,
+        version=body.version,
+        spec=body.spec,
+        open_pr=False,
+        dry_run_pr=True,
     )
-    # Diff + scan wired in M1–M4; bump stores the version for now.
-    return PushSpecResponse(version=body.version, changes_detected=0)
+    return PushSpecResponse(
+        version=body.version,
+        changes_detected=result["changes_detected"],
+    )
