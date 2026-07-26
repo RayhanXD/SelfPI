@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Any
+from urllib.parse import urlparse
 
+import certifi
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
@@ -23,12 +25,31 @@ def set_client_override(client: Any | None) -> None:
     get_client.cache_clear()
 
 
+def _uri_uses_tls(uri: str) -> bool:
+    lower = uri.lower()
+    if lower.startswith("mongodb+srv://"):
+        return True
+    if "tls=true" in lower or "ssl=true" in lower:
+        return True
+    return False
+
+
+def create_mongo_client(uri: str, **kwargs: Any) -> MongoClient:
+    """Create a MongoClient; attach certifi CA bundle when TLS/SRV is used."""
+    opts = dict(kwargs)
+    if _uri_uses_tls(uri) and "tlsCAFile" not in opts:
+        opts["tlsCAFile"] = certifi.where()
+    return MongoClient(uri, **opts)
+
+
 @lru_cache
 def get_client() -> MongoClient:
     if _client_override is not None:
         return _client_override
+    # Clear settings cache so .env edits take effect across make targets in long-lived shells
+    get_settings.cache_clear()
     settings = get_settings()
-    return MongoClient(settings.mongodb_uri)
+    return create_mongo_client(settings.mongodb_uri)
 
 
 def get_db() -> Database:

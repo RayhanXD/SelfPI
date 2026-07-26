@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 from db.client import apis, get_db, spec_versions
 from db.schemas import ensure_indexes
 
 SEED_API_ID = "stripe"
 SEED_VERSION = "2026-06-01"
+SAMPLE_REPO = str((Path(__file__).resolve().parents[2] / "fixtures" / "sample_repo"))
+
 
 SEED_SPEC = {
     "openapi": "3.1.0",
@@ -49,6 +52,7 @@ def seed(*, force: bool = False) -> dict:
                 "name": "Stripe",
                 "spec_url": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json",
                 "repo": "myorg/billing-app",
+                "repo_path": SAMPLE_REPO,
                 "current_version": SEED_VERSION,
                 "status": "up_to_date",
                 "languages": ["python"],

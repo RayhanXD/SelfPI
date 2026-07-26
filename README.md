@@ -17,9 +17,21 @@ docs/        Design + product docs
 
 - Python 3.11+
 - Node 20+
-- MongoDB (local or Atlas)
+- MongoDB — `make` starts a **local portable mongod** automatically (no Docker).
+  Atlas works too once Network Access allows your IP (`0.0.0.0/0` for dev).
 
-## Backend (M0)
+## Run everything
+
+```bash
+make
+```
+
+- UI:  http://localhost:5173 — open Watched APIs → **Bump spec**
+- API: http://localhost:8000/health
+
+`make stop` kills API, UI, and local mongod.
+
+## Backend (manual)
 
 ```bash
 cd backend
@@ -33,7 +45,7 @@ uvicorn api.main:app --reload --port 8000
 
 Health: `GET http://localhost:8000/health`
 
-## Frontend
+## Frontend (manual)
 
 ```bash
 cd frontend
@@ -45,13 +57,13 @@ npm run dev            # http://localhost:5173 (proxies /apis, /changes to :8000
 
 | Milestone | Status |
 |-----------|--------|
-| **M0** Skeleton & data layer | Scaffolded |
-| M1 Diff engine | Stub + fixtures ready |
-| M2 Scanner core (Python) | Module stubs + sample repo |
-| M3 Adjudicator + Patcher | Stubs |
-| M4 REST API (full pipeline) | Contract routes live; pipeline not wired |
-| M5 Frontend screens | Shell + five screens against API |
-| M6 Demo loop | Pending |
+| **M0** Skeleton & data layer | Done |
+| **M1** Diff engine | Done |
+| **M2** Scanner core (Python) | Done |
+| **M3** Adjudicator + Patcher | Done |
+| **M4** REST API (pipeline wired) | Done |
+| **M5** Frontend screens | Done |
+| **M6** Demo loop + Stripe validation | Pending |
 
 ## GitHub
 

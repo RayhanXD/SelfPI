@@ -26,6 +26,12 @@ htmlcov/
 *.swp
 .cursor/
 
+# Local tooling / data
+.tools/
+
+# Agent session notes (local only)
+agent history/
+
 # Frontend
 frontend/dist/
 frontend/.vite/

@@ -1,0 +1,19 @@
+# Optional local Mongo for `make mongo` when Docker Desktop is available.
+# Production/Atlas remains the default path — set MONGODB_URI in backend/.env.
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: selfpi-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - selfpi_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  selfpi_mongo_data:
