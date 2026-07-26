@@ -1,0 +1,113 @@
+"""Pydantic response/request models matching docs/API_CONTRACT.md."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+from scanner.ir.enums import ApiStatus, ChangeKind, ChangeStatus, PrState, SourceLayer
+from scanner.ir.types import CallSite
+
+
+class ErrorBody(BaseModel):
+    code: str
+    message: str
+
+
+class ErrorResponse(BaseModel):
+    error: ErrorBody
+
+
+class PrSummary(BaseModel):
+    number: int
+    url: str | None = None
+    state: PrState
+    tests_passing: bool | None = None
+    opened_at: str | None = None
+
+
+class ApiSummary(BaseModel):
+    id: str
+    name: str
+    current_version: str | None = None
+    status: ApiStatus
+    languages: list[str] = Field(default_factory=list)
+    last_checked: str | None = None
+    open_change_count: int = 0
+    repo: str | None = None
+    spec_url: str | None = None
+
+
+class CreateApiRequest(BaseModel):
+    id: str
+    name: str
+    spec_url: str
+    repo: str
+    languages: list[str] = Field(default_factory=lambda: ["python"])
+
+
+class CheckApiResponse(BaseModel):
+    checked: bool
+    new_version: str | None = None
+    changes_detected: int = 0
+
+
+class SpecDiff(BaseModel):
+    operation_id: str
+    removed: list[str] = Field(default_factory=list)
+    added: list[str] = Field(default_factory=list)
+    raw: str | None = None
+
+
+class ChangeSummary(BaseModel):
+    id: str
+    api_id: str
+    operation_id: str
+    kind: ChangeKind
+    detail: dict[str, Any] = Field(default_factory=dict)
+    call_site_count: int = 0
+    status: ChangeStatus
+    pr: PrSummary | None = None
+    detected_at: str | None = None
+
+
+class ChangeListResponse(BaseModel):
+    items: list[ChangeSummary]
+    next_cursor: str | None = None
+
+
+class ChangeDetail(BaseModel):
+    id: str
+    api_id: str
+    operation_id: str
+    kind: ChangeKind
+    detail: dict[str, Any] = Field(default_factory=dict)
+    from_version: str | None = None
+    to_version: str | None = None
+    status: ChangeStatus
+    repo: str | None = None
+    spec_diff: SpecDiff | None = None
+    call_sites: list[CallSite] = Field(default_factory=list)
+    pr: PrSummary | None = None
+    detected_at: str | None = None
+
+
+class RescanResponse(BaseModel):
+    call_site_count: int
+    status: ChangeStatus
+
+
+class SpecVersionSummary(BaseModel):
+    version: str
+    fetched_at: str | None = None
+
+
+class PushSpecRequest(BaseModel):
+    version: str
+    spec: dict[str, Any]
+
+
+class PushSpecResponse(BaseModel):
+    version: str
+    changes_detected: int = 0

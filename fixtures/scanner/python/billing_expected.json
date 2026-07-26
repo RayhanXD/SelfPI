@@ -1,0 +1,24 @@
+{
+  "file": "billing.py",
+  "language": "python",
+  "expected_call_sites": [
+    {
+      "span": { "start_line": 4, "end_line": 4 },
+      "receiver": "stripe",
+      "path": ["Charge", "create"],
+      "invoked": true,
+      "operation_id": "createCharge",
+      "args": [{ "name": "source", "value_kind": "literal", "kind": "keyword" }],
+      "in_comment": false
+    },
+    {
+      "span": { "start_line": 11, "end_line": 11 },
+      "receiver": "stripe",
+      "path": ["Charge", "create"],
+      "invoked": true,
+      "operation_id": "createCharge",
+      "args": [{ "name": "source", "value_kind": "dynamic", "kind": "keyword" }],
+      "in_comment": false
+    }
+  ]
+}
