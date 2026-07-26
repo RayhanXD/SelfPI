@@ -1,14 +1,12 @@
 # SelfPI Frontend
 
-React + TypeScript + Tailwind dashboard (dark-minimal). Screens:
+React + TypeScript + Tailwind dashboard (dark-minimal). Screens per `docs/FRONTEND_GUIDELINES.md`:
 
-- Watched APIs (`/`)
-- Change Feed (`/changes`)
+- Watched APIs (`/`) — status table, Check now, demo **Bump spec**
+- Change Feed (`/changes`) — filter by status / api_id
 - Change Detail (`/changes/:id`) — spec diff · call sites · PR status
-- Call-Site Explorer (`/changes/:id/explorer`)
+- Call-Site Explorer (`/changes/:id/explorer`) — IR table, expand JSON, ↑↓/Enter
 - Settings (`/settings`)
-
-Tokens and component rules: `../docs/FRONTEND_GUIDELINES.md`.
 
 ```bash
 npm install

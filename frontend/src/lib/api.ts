@@ -1,17 +1,25 @@
-import type { ApiSummary, ChangeDetail, ChangeListResponse } from "../types/api";
+import type { ApiSummary, ChangeDetail, ChangeListResponse, ChangeSummary } from "../types/api";
 
 const BASE = "";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { Accept: "application/json", ...(init?.headers ?? {}) },
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
     ...init,
   });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    const message = body?.error?.message ?? res.statusText;
-    throw new Error(message);
+    const message =
+      body?.error?.message ??
+      (typeof body?.detail === "object" ? body.detail?.error?.message : null) ??
+      res.statusText;
+    throw new Error(message || `HTTP ${res.status}`);
   }
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
@@ -23,6 +31,11 @@ export const api = {
       `/apis/${id}/check`,
       { method: "POST" },
     ),
+  pushSpecVersion: (id: string, version: string, spec: object) =>
+    request<{ version: string; changes_detected: number }>(`/apis/${id}/spec-versions`, {
+      method: "POST",
+      body: JSON.stringify({ version, spec }),
+    }),
   listChanges: (params?: { api_id?: string; status?: string }) => {
     const q = new URLSearchParams();
     if (params?.api_id) q.set("api_id", params.api_id);
@@ -32,7 +45,9 @@ export const api = {
   },
   getChange: (id: string) => request<ChangeDetail>(`/changes/${id}`),
   dismissChange: (id: string) =>
-    request(`/changes/${id}/dismiss`, { method: "POST" }),
+    request<ChangeSummary>(`/changes/${id}/dismiss`, { method: "POST" }),
   rescanChange: (id: string) =>
-    request(`/changes/${id}/rescan`, { method: "POST" }),
+    request<{ call_site_count: number; status: string }>(`/changes/${id}/rescan`, {
+      method: "POST",
+    }),
 };

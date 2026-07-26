@@ -1,39 +1,57 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { CodeBlock } from "../components/CodeBlock";
 import { ConfidenceBar } from "../components/ConfidenceBar";
+import { EmptyState, ErrorState, SkeletonRows } from "../components/EmptyState";
 import { LayerBadge } from "../components/LayerBadge";
 import { api } from "../lib/api";
-import type { CallSite, ChangeDetail } from "../types/api";
+import { useAsync } from "../lib/useAsync";
+import type { CallSite } from "../types/api";
 
 export function CallSiteExplorerPage() {
   const { id } = useParams<{ id: string }>();
-  const [change, setChange] = useState<ChangeDetail | null>(null);
-  const [expanded, setExpanded] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: change, error, loading } = useAsync(() => api.getChange(id!), [id]);
+  const [expanded, setExpanded] = useState<number | null>(0);
+  const [focusIdx, setFocusIdx] = useState(0);
+
+  const sites = change?.call_sites ?? [];
 
   useEffect(() => {
-    if (!id) return;
-    api
-      .getChange(id)
-      .then(setChange)
-      .catch((e: Error) => setError(e.message));
-  }, [id]);
+    const onKey = (e: KeyboardEvent) => {
+      if (!sites.length) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setFocusIdx((i) => Math.min(sites.length - 1, i + 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setFocusIdx((i) => Math.max(0, i - 1));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        setExpanded((cur) => (cur === focusIdx ? null : focusIdx));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sites.length, focusIdx]);
 
-  if (error) return <p className="text-danger">{error}</p>;
-  if (!change) return <p className="text-text-muted">Loading…</p>;
+  if (error) return <ErrorState message={error} />;
+  if (loading || !change) return <SkeletonRows />;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 text-sm">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
         <Link to={`/changes/${change.id}`} className="text-text-muted hover:text-accent">
           ← {change.operation_id}
         </Link>
         <span className="text-text-muted">·</span>
-        <span className="text-text-secondary">{change.call_sites.length} records</span>
+        <span className="text-text-secondary">{sites.length} records</span>
+        <span className="ml-auto text-xs text-text-muted">
+          ↑↓ navigate · Enter expand
+        </span>
       </div>
 
-      {change.call_sites.length === 0 ? (
-        <p className="text-text-muted">No call sites for this change.</p>
+      {sites.length === 0 ? (
+        <EmptyState message="No call sites for this change." />
       ) : (
         <div className="overflow-hidden rounded-md border border-border">
           <table className="w-full border-collapse text-left text-sm">
@@ -47,12 +65,16 @@ export function CallSiteExplorerPage() {
               </tr>
             </thead>
             <tbody>
-              {change.call_sites.map((cs, i) => (
+              {sites.map((cs, i) => (
                 <CallSiteRow
                   key={`${cs.file}:${cs.span.start_line}:${i}`}
                   site={cs}
                   expanded={expanded === i}
-                  onToggle={() => setExpanded(expanded === i ? null : i)}
+                  focused={focusIdx === i}
+                  onToggle={() => {
+                    setFocusIdx(i);
+                    setExpanded(expanded === i ? null : i);
+                  }}
                 />
               ))}
             </tbody>
@@ -66,10 +88,12 @@ export function CallSiteExplorerPage() {
 function CallSiteRow({
   site,
   expanded,
+  focused,
   onToggle,
 }: {
   site: CallSite;
   expanded: boolean;
+  focused: boolean;
   onToggle: () => void;
 }) {
   const args = site.args
@@ -80,10 +104,18 @@ function CallSiteRow({
   return (
     <>
       <tr
-        className={`cursor-pointer border-b border-border hover:bg-surface-2 ${
-          expanded ? "bg-surface-3" : ""
-        }`}
+        className={[
+          "cursor-pointer border-b border-border hover:bg-surface-2",
+          expanded || focused ? "bg-surface-3" : "",
+        ].join(" ")}
         onClick={onToggle}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
       >
         <td className="px-3 py-2 font-mono text-xs text-text-primary">
           {site.file}:{site.span.start_line}
@@ -102,9 +134,12 @@ function CallSiteRow({
       {expanded ? (
         <tr className="border-b border-border bg-surface-1">
           <td colSpan={5} className="px-3 py-3">
-            <pre className="overflow-x-auto rounded-sm border border-border bg-bg p-3 font-mono text-xs text-text-secondary">
-              {JSON.stringify(site, null, 2)}
-            </pre>
+            {site.snippet ? (
+              <pre className="mb-3 overflow-x-auto rounded-sm border border-border bg-bg px-2 py-1 font-mono text-xs text-text-secondary whitespace-pre">
+                {site.snippet}
+              </pre>
+            ) : null}
+            <CodeBlock>{JSON.stringify(site, null, 2)}</CodeBlock>
           </td>
         </tr>
       ) : null}

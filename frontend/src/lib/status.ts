@@ -37,6 +37,22 @@ export function changeStatusLabel(status: ChangeStatus): string {
   }
 }
 
+export function changeStatusTone(
+  status: ChangeStatus,
+): "ok" | "warn" | "danger" | "info" | "muted" {
+  switch (status) {
+    case "merged":
+      return "ok";
+    case "pr_open":
+      return "info";
+    case "dismissed":
+      return "muted";
+    case "scanning":
+    case "detected":
+      return "warn";
+  }
+}
+
 export function confidenceTone(confidence: number): "ok" | "warn" | "danger" {
   if (confidence >= 0.85) return "ok";
   if (confidence >= 0.6) return "warn";

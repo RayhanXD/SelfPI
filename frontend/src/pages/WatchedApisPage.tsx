@@ -1,99 +1,128 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { api } from "../lib/api";
-import { apiStatusLabel, apiStatusTone } from "../lib/status";
-import type { ApiSummary } from "../types/api";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "../components/Button";
+import { EmptyState, ErrorState, SkeletonRows } from "../components/EmptyState";
 import { StatusPill } from "../components/StatusPill";
+import { api } from "../lib/api";
+import { DEMO_BUMP_SPEC } from "../lib/demo";
+import { apiStatusLabel, apiStatusTone } from "../lib/status";
+import { useAsync } from "../lib/useAsync";
 
 export function WatchedApisPage() {
-  const [apis, setApis] = useState<ApiSummary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [checking, setChecking] = useState<string | null>(null);
-
-  const load = () => {
-    setError(null);
-    api
-      .listApis()
-      .then(setApis)
-      .catch((e: Error) => setError(e.message));
-  };
-
-  useEffect(load, []);
+  const navigate = useNavigate();
+  const { data: apis, error, loading, reload } = useAsync(() => api.listApis(), []);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const onCheck = async (id: string) => {
-    setChecking(id);
+    setBusy(`check:${id}`);
+    setActionError(null);
     try {
-      await api.checkApi(id);
-      load();
+      const result = await api.checkApi(id);
+      reload();
+      if (result.changes_detected > 0) {
+        navigate(`/changes?api_id=${id}`);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Check failed");
+      setActionError(e instanceof Error ? e.message : "Check failed");
     } finally {
-      setChecking(null);
+      setBusy(null);
     }
   };
 
-  if (error) {
-    return <p className="text-danger">{error}</p>;
-  }
+  const onBump = async (id: string) => {
+    setBusy(`bump:${id}`);
+    setActionError(null);
+    try {
+      const version = `demo-${Date.now()}`;
+      const result = await api.pushSpecVersion(id, version, {
+        ...DEMO_BUMP_SPEC,
+        info: { ...DEMO_BUMP_SPEC.info, version },
+      });
+      reload();
+      if (result.changes_detected > 0) {
+        navigate(`/changes?api_id=${id}`);
+      }
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Bump failed");
+    } finally {
+      setBusy(null);
+    }
+  };
 
-  if (!apis) {
-    return <p className="text-text-muted">Loading…</p>;
+  if (error || actionError) {
+    return <ErrorState message={error ?? actionError!} />;
   }
-
-  if (apis.length === 0) {
-    return <p className="text-text-muted">No APIs watched yet.</p>;
-  }
+  if (loading || !apis) return <SkeletonRows />;
+  if (apis.length === 0) return <EmptyState message="No APIs watched yet." />;
 
   return (
-    <div className="overflow-hidden rounded-md border border-border">
-      <table className="w-full border-collapse text-left text-sm">
-        <thead className="sticky top-0 bg-surface-2">
-          <tr className="border-b border-border text-xs uppercase tracking-wide text-text-muted">
-            <th className="px-3 py-2 font-medium">API</th>
-            <th className="px-3 py-2 font-medium">Version</th>
-            <th className="px-3 py-2 font-medium">Status</th>
-            <th className="px-3 py-2 font-medium">Last checked</th>
-            <th className="px-3 py-2 font-medium">Open changes</th>
-            <th className="px-3 py-2 font-medium" />
-          </tr>
-        </thead>
-        <tbody>
-          {apis.map((a) => (
-            <tr
-              key={a.id}
-              className="border-b border-border last:border-0 hover:bg-surface-2"
-            >
-              <td className="px-3 py-2">
-                <Link to={`/changes?api_id=${a.id}`} className="text-text-primary hover:text-accent">
-                  {a.name}
-                </Link>
-              </td>
-              <td className="px-3 py-2 font-mono text-text-secondary">
-                {a.current_version ?? "—"}
-              </td>
-              <td className="px-3 py-2">
-                <StatusPill label={apiStatusLabel(a.status)} tone={apiStatusTone(a.status)} />
-              </td>
-              <td className="px-3 py-2 font-mono text-xs text-text-muted">
-                {a.last_checked ?? "—"}
-              </td>
-              <td className="px-3 py-2 tabular-nums text-text-secondary">
-                {a.open_change_count}
-              </td>
-              <td className="px-3 py-2 text-right">
-                <button
-                  type="button"
-                  onClick={() => onCheck(a.id)}
-                  disabled={checking === a.id}
-                  className="rounded-md border border-border-strong px-2.5 py-1 text-xs text-text-secondary hover:bg-surface-3 disabled:opacity-50"
-                >
-                  {checking === a.id ? "Checking…" : "Check now"}
-                </button>
-              </td>
+    <div className="space-y-3">
+      <p className="text-xs text-text-muted">
+        Demo: <span className="font-mono">Bump spec</span> pushes a rename of{" "}
+        <span className="font-mono">source → payment_method</span> and runs the pipeline.
+      </p>
+      <div className="overflow-hidden rounded-md border border-border">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="sticky top-0 bg-surface-2">
+            <tr className="border-b border-border text-xs uppercase tracking-wide text-text-muted">
+              <th className="px-3 py-2 font-medium">API</th>
+              <th className="px-3 py-2 font-medium">Version</th>
+              <th className="px-3 py-2 font-medium">Status</th>
+              <th className="px-3 py-2 font-medium">Last checked</th>
+              <th className="px-3 py-2 font-medium">Open changes</th>
+              <th className="px-3 py-2 font-medium text-right">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {apis.map((a) => (
+              <tr
+                key={a.id}
+                className="border-b border-border last:border-0 hover:bg-surface-2"
+              >
+                <td className="px-3 py-2">
+                  <Link
+                    to={`/changes?api_id=${a.id}`}
+                    className="text-text-primary hover:text-accent"
+                  >
+                    {a.name}
+                  </Link>
+                  <div className="font-mono text-xs text-text-muted">{a.id}</div>
+                </td>
+                <td className="px-3 py-2 font-mono text-text-secondary">
+                  {a.current_version ?? "—"}
+                </td>
+                <td className="px-3 py-2">
+                  <StatusPill label={apiStatusLabel(a.status)} tone={apiStatusTone(a.status)} />
+                </td>
+                <td className="px-3 py-2 font-mono text-xs text-text-muted">
+                  {a.last_checked ?? "—"}
+                </td>
+                <td className="px-3 py-2 tabular-nums text-text-secondary">
+                  {a.open_change_count}
+                </td>
+                <td className="px-3 py-2">
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      onClick={() => onCheck(a.id)}
+                      disabled={busy === `check:${a.id}`}
+                    >
+                      {busy === `check:${a.id}` ? "Checking…" : "Check now"}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      onClick={() => onBump(a.id)}
+                      disabled={busy === `bump:${a.id}`}
+                    >
+                      {busy === `bump:${a.id}` ? "Bumping…" : "Bump spec"}
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

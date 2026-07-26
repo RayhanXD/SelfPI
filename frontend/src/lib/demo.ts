@@ -1,0 +1,21 @@
+/** Demo bump payload — mirrors fixtures/diff/renamed_param/new.json */
+
+export const DEMO_BUMP_SPEC = {
+  openapi: "3.1.0",
+  info: { title: "Demo API", version: "2026-07-01" },
+  paths: {
+    "/v1/charges": {
+      post: {
+        operationId: "createCharge",
+        parameters: [
+          {
+            name: "payment_method",
+            in: "query",
+            schema: { type: "string" },
+          },
+        ],
+        responses: { "200": { description: "OK" } },
+      },
+    },
+  },
+} as const;
