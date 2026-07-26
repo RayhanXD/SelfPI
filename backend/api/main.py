@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routes import apis_router, changes_router, specs_router
+from api.routes import apis_router, changes_router, settings_router, specs_router
 from db.client import get_client
 from db.schemas import ensure_indexes
 from db.settings import get_settings
@@ -42,6 +42,7 @@ app.add_middleware(
 app.include_router(apis_router)
 app.include_router(changes_router)
 app.include_router(specs_router)
+app.include_router(settings_router)
 
 
 @app.exception_handler(Exception)

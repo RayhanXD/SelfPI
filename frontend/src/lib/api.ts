@@ -1,4 +1,10 @@
-import type { ApiSummary, ChangeDetail, ChangeListResponse, ChangeSummary } from "../types/api";
+import type {
+  ApiSummary,
+  ChangeDetail,
+  ChangeListResponse,
+  ChangeSummary,
+  SettingsResponse,
+} from "../types/api";
 
 const BASE = "";
 
@@ -26,6 +32,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   listApis: () => request<ApiSummary[]>("/apis"),
   getApi: (id: string) => request<ApiSummary>(`/apis/${id}`),
+  getSettings: () => request<SettingsResponse>("/settings"),
   checkApi: (id: string) =>
     request<{ checked: boolean; new_version: string | null; changes_detected: number }>(
       `/apis/${id}/check`,
@@ -50,4 +57,6 @@ export const api = {
     request<{ call_site_count: number; status: string }>(`/changes/${id}/rescan`, {
       method: "POST",
     }),
+  openPr: (id: string) =>
+    request<ChangeSummary>(`/changes/${id}/open-pr`, { method: "POST" }),
 };

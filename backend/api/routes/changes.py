@@ -1,4 +1,4 @@
-"""Changes routes — feed, detail, dismiss, rescan."""
+"""Changes routes — feed, detail, dismiss, rescan, open-pr."""
 
 from __future__ import annotations
 
@@ -159,3 +159,65 @@ def rescan_change_route(change_id: str) -> RescanResponse:
         call_site_count=result["call_site_count"],
         status=ChangeStatus(result["status"]),
     )
+
+
+@router.post("/{change_id}/open-pr", response_model=ChangeSummary)
+def open_pr_route(change_id: str) -> ChangeSummary:
+    """Open a fix PR for this change (requires GitHub App; otherwise 503)."""
+    try:
+        ObjectId(change_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "invalid_id", "message": "Invalid change id"}},
+        ) from exc
+
+    from db.settings import github_ready
+    from pipeline.process import open_change_pr
+
+    if not github_ready():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "github_not_configured",
+                    "message": (
+                        "GitHub App not configured. Set GITHUB_APP_ID, "
+                        "GITHUB_APP_PRIVATE_KEY, and GITHUB_APP_INSTALLATION_ID."
+                    ),
+                }
+            },
+        )
+
+    try:
+        result = open_change_pr(change_id, dry_run=False)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": {"code": "not_found", "message": str(exc)}},
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "no_call_sites", "message": str(exc)}},
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"error": {"code": "pr_failed", "message": str(exc)}},
+        ) from exc
+
+    if result.get("dry_run"):
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "github_not_configured",
+                    "message": result.get("note") or "GitHub App not configured",
+                }
+            },
+        )
+
+    doc = changes().find_one({"_id": ObjectId(change_id)})
+    assert doc is not None
+    return _summary_from_doc(doc)

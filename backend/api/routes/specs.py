@@ -49,12 +49,15 @@ def push_spec_version(api_id: str, body: PushSpecRequest) -> PushSpecResponse:
             "fingerprint": spec_fingerprint(body.spec),
         }
     )
+    from db.settings import pr_pipeline_flags
+
+    open_pr, dry_run_pr = pr_pipeline_flags()
     result = process_spec_bump(
         api_id,
         version=body.version,
         spec=body.spec,
-        open_pr=False,
-        dry_run_pr=True,
+        open_pr=open_pr,
+        dry_run_pr=dry_run_pr,
     )
     return PushSpecResponse(
         version=body.version,

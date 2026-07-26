@@ -129,3 +129,76 @@ def test_rescan_reruns_scanner():
     assert resp.status_code == 200
     assert resp.json()["call_site_count"] == 2
     assert resp.json()["status"] == "detected"
+
+
+def test_open_pr_requires_github_config():
+    from api.main import app
+
+    http = TestClient(app)
+    _seed_api_with_old_spec(http)
+    new = _load(FIXTURES / "diff" / "renamed_param" / "new.json")
+    http.post("/apis/stripe/spec-versions", json={"version": "2026-07-01", "spec": new})
+    change_id = http.get("/changes").json()["items"][0]["id"]
+
+    resp = http.post(f"/changes/{change_id}/open-pr")
+    assert resp.status_code == 503
+    detail = resp.json()["detail"]
+    assert detail["error"]["code"] == "github_not_configured"
+
+
+def test_open_pr_updates_status_with_fake_github(monkeypatch):
+    from api.main import app
+    import db.settings as settings_mod
+
+    class FakeGitHub:
+        configured = True
+
+        def create_pull_request(self, **kwargs):
+            return {
+                "number": 7,
+                "url": "https://github.com/myorg/billing-app/pull/7",
+                "state": "open",
+                "tests_passing": None,
+                "opened_at": "2026-07-01T00:10:00Z",
+            }
+
+    monkeypatch.setattr(settings_mod, "github_ready", lambda: True)
+
+    import patcher as patcher_mod
+
+    real_generate = patcher_mod.generate_and_open_pr
+
+    def generate_with_fake(*args, **kwargs):
+        kwargs["github"] = FakeGitHub()
+        kwargs["dry_run"] = False
+        return real_generate(*args, **kwargs)
+
+    monkeypatch.setattr("pipeline.process.generate_and_open_pr", generate_with_fake)
+
+    http = TestClient(app)
+    _seed_api_with_old_spec(http)
+    new = _load(FIXTURES / "diff" / "renamed_param" / "new.json")
+    http.post("/apis/stripe/spec-versions", json={"version": "2026-07-01", "spec": new})
+    change_id = http.get("/changes").json()["items"][0]["id"]
+
+    resp = http.post(f"/changes/{change_id}/open-pr")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "pr_open"
+    assert body["pr"]["number"] == 7
+    assert body["pr"]["url"] == "https://github.com/myorg/billing-app/pull/7"
+
+    detail = http.get(f"/changes/{change_id}").json()
+    assert detail["status"] == "pr_open"
+    assert detail["pr"]["url"].endswith("/pull/7")
+
+
+def test_settings_reports_github_not_configured():
+    from api.main import app
+
+    http = TestClient(app)
+    resp = http.get("/settings")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["github_configured"] is False
+    assert "GITHUB_APP" in (body.get("hint") or "")

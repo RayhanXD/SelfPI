@@ -49,10 +49,28 @@ export function ChangeDetailPage() {
     }
   };
 
+  const onOpenPr = async () => {
+    if (!change) return;
+    setBusy("open-pr");
+    setActionError(null);
+    try {
+      await api.openPr(change.id);
+      reload();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Open PR failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   if (error || actionError) return <ErrorState message={error ?? actionError!} />;
   if (loading || !change) return <SkeletonRows cols={3} />;
 
   const pr = change.pr;
+  const canOpenPr =
+    change.status === "detected" &&
+    change.call_sites.length > 0 &&
+    !(pr?.url);
 
   return (
     <div className="space-y-4">
@@ -74,6 +92,11 @@ export function ChangeDetailPage() {
           {change.from_version} → {change.to_version}
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {canOpenPr ? (
+            <Button variant="primary" onClick={onOpenPr} disabled={busy === "open-pr"}>
+              {busy === "open-pr" ? "Opening…" : "Open PR"}
+            </Button>
+          ) : null}
           <Button onClick={onRescan} disabled={busy === "rescan"}>
             {busy === "rescan" ? "Scanning…" : "Rescan"}
           </Button>
@@ -139,18 +162,14 @@ export function ChangeDetailPage() {
 
         <section className="rounded-lg border border-border bg-surface-1 p-4">
           <h2 className="mb-3 text-base text-text-primary">PR status</h2>
-          {pr ? (
+          {pr?.url ? (
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between gap-4">
                 <dt className="text-text-muted">PR</dt>
                 <dd className="font-mono">
-                  {pr.url ? (
-                    <a href={pr.url} target="_blank" rel="noreferrer">
-                      #{pr.number}
-                    </a>
-                  ) : (
-                    `#${pr.number}`
-                  )}
+                  <a href={pr.url} target="_blank" rel="noreferrer" className="text-accent">
+                    #{pr.number}
+                  </a>
                 </dd>
               </div>
               <div className="flex justify-between gap-4">
@@ -184,7 +203,13 @@ export function ChangeDetailPage() {
               ) : null}
             </dl>
           ) : (
-            <EmptyState message="No PR opened yet." />
+            <EmptyState
+              message={
+                canOpenPr
+                  ? "No PR yet. Configure the GitHub App, then click Open PR."
+                  : "No PR opened yet."
+              }
+            />
           )}
         </section>
       </div>

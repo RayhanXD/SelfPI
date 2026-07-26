@@ -25,6 +25,7 @@ def _doc_to_summary(doc: dict) -> ApiSummary:
         open_change_count=doc.get("open_change_count", 0),
         repo=doc.get("repo"),
         spec_url=doc.get("spec_url"),
+        mode=doc.get("mode"),
     )
 
 
@@ -74,8 +75,11 @@ def check_api(api_id: str) -> CheckApiResponse:
             status_code=404,
             detail={"error": {"code": "not_found", "message": f"API '{api_id}' not found"}},
         )
+    from db.settings import pr_pipeline_flags
+
+    open_pr, dry_run_pr = pr_pipeline_flags()
     try:
-        result = poll_api(api_id, open_pr=False, dry_run_pr=True)
+        result = poll_api(api_id, open_pr=open_pr, dry_run_pr=dry_run_pr)
     except Exception as exc:
         raise HTTPException(
             status_code=502,

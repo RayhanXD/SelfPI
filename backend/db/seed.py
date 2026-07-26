@@ -1,18 +1,22 @@
-"""Seed one apis doc + one spec_versions doc for local/dev bootstrap."""
+"""Seed demo + live watched APIs for local/dev bootstrap."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 from db.client import apis, get_db, spec_versions
 from db.schemas import ensure_indexes
 
-SEED_API_ID = "stripe"
-SEED_VERSION = "2026-06-01"
+SAMPLE_REPO = str((Path(__file__).resolve().parents[2] / "fixtures" / "sample_repo").resolve())
 
-SEED_SPEC = {
+DEMO_API_ID = "stripe-demo"
+DEMO_VERSION = "2026-06-01"
+LIVE_API_ID = "stripe"
+
+DEMO_SPEC = {
     "openapi": "3.1.0",
-    "info": {"title": "Stripe (seed)", "version": SEED_VERSION},
+    "info": {"title": "Stripe (demo)", "version": DEMO_VERSION},
     "paths": {
         "/v1/charges": {
             "post": {
@@ -31,6 +35,11 @@ SEED_SPEC = {
     },
 }
 
+# Back-compat aliases used by older scripts/tests
+SEED_API_ID = DEMO_API_ID
+SEED_VERSION = DEMO_VERSION
+SEED_SPEC = DEMO_SPEC
+
 
 def seed(*, force: bool = False) -> dict:
     """Insert seed documents if missing. Returns counts of what was written."""
@@ -40,16 +49,19 @@ def seed(*, force: bool = False) -> dict:
     written = {"apis": 0, "spec_versions": 0}
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
-    existing_api = apis().find_one({"_id": SEED_API_ID})
-    if existing_api is None or force:
+    # --- Demo API (Bump spec only) -----------------------------------------
+    existing_demo = apis().find_one({"_id": DEMO_API_ID})
+    if existing_demo is None or force:
         apis().replace_one(
-            {"_id": SEED_API_ID},
+            {"_id": DEMO_API_ID},
             {
-                "_id": SEED_API_ID,
-                "name": "Stripe",
-                "spec_url": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json",
+                "_id": DEMO_API_ID,
+                "name": "Stripe (demo)",
+                "mode": "demo",
+                "spec_url": None,
                 "repo": "myorg/billing-app",
-                "current_version": SEED_VERSION,
+                "repo_path": SAMPLE_REPO,
+                "current_version": DEMO_VERSION,
                 "status": "up_to_date",
                 "languages": ["python"],
                 "last_checked": now,
@@ -57,21 +69,47 @@ def seed(*, force: bool = False) -> dict:
             },
             upsert=True,
         )
-        written["apis"] = 1
+        written["apis"] += 1
 
-    existing_spec = spec_versions().find_one({"api_id": SEED_API_ID, "version": SEED_VERSION})
-    if existing_spec is None or force:
-        if existing_spec and force:
-            spec_versions().delete_many({"api_id": SEED_API_ID, "version": SEED_VERSION})
+    existing_demo_spec = spec_versions().find_one(
+        {"api_id": DEMO_API_ID, "version": DEMO_VERSION}
+    )
+    if existing_demo_spec is None or force:
+        if existing_demo_spec and force:
+            spec_versions().delete_many({"api_id": DEMO_API_ID, "version": DEMO_VERSION})
         spec_versions().insert_one(
             {
-                "api_id": SEED_API_ID,
-                "version": SEED_VERSION,
+                "api_id": DEMO_API_ID,
+                "version": DEMO_VERSION,
                 "fetched_at": now,
-                "spec": SEED_SPEC,
+                "spec": DEMO_SPEC,
             }
         )
-        written["spec_versions"] = 1
+        written["spec_versions"] += 1
+
+    # --- Live Stripe (Check now only) — no seed spec; first poll stores baseline
+    existing_live = apis().find_one({"_id": LIVE_API_ID})
+    if existing_live is None or force:
+        apis().replace_one(
+            {"_id": LIVE_API_ID},
+            {
+                "_id": LIVE_API_ID,
+                "name": "Stripe",
+                "mode": "live",
+                "spec_url": (
+                    "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json"
+                ),
+                "repo": "myorg/billing-app",
+                "repo_path": SAMPLE_REPO,
+                "current_version": None,
+                "status": "up_to_date",
+                "languages": ["python"],
+                "last_checked": None,
+                "open_change_count": 0,
+            },
+            upsert=True,
+        )
+        written["apis"] += 1
 
     return written
 

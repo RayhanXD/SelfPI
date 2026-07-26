@@ -32,6 +32,15 @@ export interface ApiSummary {
   open_change_count: number;
   repo?: string | null;
   spec_url?: string | null;
+  /** "demo" = Bump spec; "live" = Check now */
+  mode?: "demo" | "live" | string | null;
+}
+
+export interface SettingsResponse {
+  github_configured: boolean;
+  default_base_branch: string;
+  repo_path_set: boolean;
+  hint?: string | null;
 }
 
 export interface PrSummary {

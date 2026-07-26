@@ -37,6 +37,14 @@ class ApiSummary(BaseModel):
     open_change_count: int = 0
     repo: str | None = None
     spec_url: str | None = None
+    mode: str | None = None  # "demo" | "live"
+
+
+class SettingsResponse(BaseModel):
+    github_configured: bool
+    default_base_branch: str
+    repo_path_set: bool
+    hint: str | None = None
 
 
 class CreateApiRequest(BaseModel):

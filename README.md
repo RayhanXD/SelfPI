@@ -17,23 +17,69 @@ docs/        Design + product docs
 
 - Python 3.11+
 - Node 20+
-- MongoDB (local or Atlas)
+- MongoDB — `make` starts a **local portable mongod** automatically (no Docker).
 
-## Backend (M0)
+## Run everything
+
+```bash
+make
+```
+
+- UI:  http://localhost:5173 — **Bump spec** on `Stripe (demo)`
+- API: http://localhost:8000/health
+- Reset polluted DB: `make reset`
+
+`make stop` kills API, UI, and local mongod.
+
+## Demo vs live
+
+| API id | Mode | Action |
+|--------|------|--------|
+| `stripe-demo` | demo | **Bump spec** — pushes `source → payment_method` and runs the pipeline |
+| `stripe` | live | **Check now** — polls the real Stripe OpenAPI |
+
+Do not bump the live API or check the demo API — they are split so they cannot poison each other.
+
+## GitHub App (open real PRs)
+
+Without these env vars, the pipeline detects call sites but does **not** open a PR. With them set, bump/check auto-open PRs when call sites exist, and Change Detail shows **Open PR**.
+
+1. Create a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps) with permissions:
+   - **Contents:** Read & write
+   - **Pull requests:** Read & write
+   - **Metadata:** Read-only
+2. Generate a private key (`.pem`). Install the App on a test repo that contains Stripe Python call sites (or push `fixtures/sample_repo`).
+3. In `backend/.env`:
+
+```bash
+GITHUB_APP_ID=123456
+GITHUB_APP_INSTALLATION_ID=12345678
+GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+GITHUB_DEFAULT_BASE_BRANCH=main
+```
+
+PEM newlines can be literal multiline or escaped `\n`.
+
+4. Point the watched API’s `repo` field at `owner/name` (seed defaults to `myorg/billing-app` — change via seed or Mongo). Optionally set `REPO_PATH` to a local checkout for scanning (defaults to `fixtures/sample_repo`).
+
+5. Restart the API, run `make reset`, **Bump spec** on the demo API, open the change, click **Open PR** (or rely on auto-open when the App is configured).
+
+Settings (`/settings`) shows whether the App is configured (no secrets).
+
+## Backend (manual)
 
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env   # set MONGODB_URI
-python -m db.seed      # seed Stripe api + spec_versions
+cp .env.example .env   # set MONGODB_URI + optional GitHub App
+python -m db.seed      # seed stripe-demo + stripe
+# python -m db.reset   # wipe + re-seed
 uvicorn api.main:app --reload --port 8000
 ```
 
-Health: `GET http://localhost:8000/health`
-
-## Frontend
+## Frontend (manual)
 
 ```bash
 cd frontend
@@ -45,13 +91,13 @@ npm run dev            # http://localhost:5173 (proxies /apis, /changes to :8000
 
 | Milestone | Status |
 |-----------|--------|
-| **M0** Skeleton & data layer | Scaffolded |
-| M1 Diff engine | Stub + fixtures ready |
-| M2 Scanner core (Python) | Module stubs + sample repo |
-| M3 Adjudicator + Patcher | Stubs |
-| M4 REST API (full pipeline) | Contract routes live; pipeline not wired |
-| M5 Frontend screens | Shell + five screens against API |
-| M6 Demo loop | Pending |
+| **M0** Skeleton & data layer | Done |
+| **M1** Diff engine | Done |
+| **M2** Scanner core (Python) | Done |
+| **M3** Adjudicator + Patcher | Done |
+| **M4** REST API (pipeline wired) | Done |
+| **M5** Frontend screens | Done |
+| **M6** Demo loop + GitHub PR path | Done (configure App for live PRs) |
 
 ## GitHub
 

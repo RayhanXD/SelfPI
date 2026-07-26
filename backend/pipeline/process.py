@@ -140,14 +140,16 @@ def process_breaking_change(
             dry_run=dry_run_pr,
             llm=get_llm_client(),
         )
-        pr_embed = {
-            "number": pr_result.get("number", 0),
-            "url": pr_result.get("url"),
-            "state": pr_result.get("state", "open"),
-            "tests_passing": pr_result.get("tests_passing"),
-            "opened_at": pr_result.get("opened_at") or now,
-        }
+        # Only persist a PR embed when a real (or intentional) PR was opened —
+        # dry-run must not pretend a GitHub PR exists in the UI.
         if not pr_result.get("dry_run"):
+            pr_embed = {
+                "number": pr_result.get("number", 0),
+                "url": pr_result.get("url"),
+                "state": pr_result.get("state", "open"),
+                "tests_passing": pr_result.get("tests_passing"),
+                "opened_at": pr_result.get("opened_at") or now,
+            }
             status = ChangeStatus.PR_OPEN
 
     changes().update_one(
@@ -161,6 +163,80 @@ def process_breaking_change(
         },
     )
     return str(change_id)
+
+
+def open_change_pr(
+    change_id: str,
+    *,
+    dry_run: bool | None = None,
+) -> dict[str, Any]:
+    """Open (or dry-run) a fix PR for an existing change with call sites."""
+    oid = ObjectId(change_id)
+    doc = changes().find_one({"_id": oid})
+    if not doc:
+        raise KeyError(f"Change '{change_id}' not found")
+
+    raw_sites = doc.get("call_sites") or []
+    if not raw_sites:
+        raise ValueError("Change has no call sites to patch")
+
+    from scanner.ir.types import CallSite
+
+    call_sites = [CallSite.model_validate(cs) for cs in raw_sites]
+    change = BreakingChange(
+        operation_id=doc["operation_id"],
+        kind=doc["kind"],
+        detail=doc.get("detail") or {},
+    )
+    api_doc = apis().find_one({"_id": doc["api_id"]}) or {}
+    repo_path = resolve_repo_path(api_doc)
+    repo_name = doc.get("repo") or api_doc.get("repo") or "local/repo"
+
+    if dry_run is None:
+        from db.settings import github_ready
+
+        dry_run = not github_ready()
+
+    now = _now()
+    pr_result = generate_and_open_pr(
+        call_sites,
+        change,
+        repo=repo_name,
+        repo_path=repo_path,
+        dry_run=dry_run,
+        llm=get_llm_client(),
+    )
+
+    if pr_result.get("dry_run"):
+        return {
+            "change_id": change_id,
+            "status": doc.get("status", ChangeStatus.DETECTED.value),
+            "pr": None,
+            "dry_run": True,
+            "edited_files": pr_result.get("edited_files") or [],
+            "note": pr_result.get("note")
+            or "Dry-run only — configure GitHub App to open a real PR",
+        }
+
+    pr_embed = {
+        "number": pr_result.get("number", 0),
+        "url": pr_result.get("url"),
+        "state": pr_result.get("state", "open"),
+        "tests_passing": pr_result.get("tests_passing"),
+        "opened_at": pr_result.get("opened_at") or now,
+    }
+    changes().update_one(
+        {"_id": oid},
+        {"$set": {"status": ChangeStatus.PR_OPEN.value, "pr": pr_embed}},
+    )
+    _refresh_api_status(doc["api_id"])
+    return {
+        "change_id": change_id,
+        "status": ChangeStatus.PR_OPEN.value,
+        "pr": pr_embed,
+        "dry_run": False,
+        "edited_files": pr_result.get("edited_files") or [],
+    }
 
 
 def rescan_change(change_id: str) -> dict[str, Any]:

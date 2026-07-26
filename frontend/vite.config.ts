@@ -9,6 +9,7 @@ export default defineConfig({
     proxy: {
       "/apis": "http://localhost:8000",
       "/changes": "http://localhost:8000",
+      "/settings": "http://localhost:8000",
       "/health": "http://localhost:8000",
     },
   },

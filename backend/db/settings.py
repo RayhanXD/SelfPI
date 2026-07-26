@@ -27,7 +27,31 @@ class Settings(BaseSettings):
     # Local path to the connected repo checkout (scanner target)
     repo_path: str | None = None
 
+    @property
+    def github_ready(self) -> bool:
+        return bool(
+            self.github_app_id
+            and self.github_app_private_key
+            and self.github_app_installation_id
+        )
+
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def github_ready() -> bool:
+    """True when GitHub App credentials are present (real PRs can be opened)."""
+    return get_settings().github_ready
+
+
+def pr_pipeline_flags() -> tuple[bool, bool]:
+    """Return (open_pr, dry_run_pr) for bump/check routes.
+
+    When the App is configured: open real PRs.
+    Otherwise: skip PR opening entirely (no fake PR embeds).
+    """
+    if github_ready():
+        return True, False
+    return False, True

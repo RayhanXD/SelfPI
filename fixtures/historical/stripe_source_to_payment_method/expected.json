@@ -1,0 +1,7 @@
+[
+  {
+    "operation_id": "createCharge",
+    "kind": "renamed_param",
+    "detail": { "param": "source", "replacement": "payment_method" }
+  }
+]

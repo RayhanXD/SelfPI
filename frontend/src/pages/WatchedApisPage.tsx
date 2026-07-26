@@ -8,6 +8,14 @@ import { DEMO_BUMP_SPEC } from "../lib/demo";
 import { apiStatusLabel, apiStatusTone } from "../lib/status";
 import { useAsync } from "../lib/useAsync";
 
+function isDemoApi(a: { id: string; mode?: string | null }) {
+  return a.mode === "demo" || a.id === "stripe-demo";
+}
+
+function isLiveApi(a: { id: string; mode?: string | null }) {
+  return a.mode === "live" || (a.mode == null && a.id === "stripe");
+}
+
 export function WatchedApisPage() {
   const navigate = useNavigate();
   const { data: apis, error, loading, reload } = useAsync(() => api.listApis(), []);
@@ -59,8 +67,9 @@ export function WatchedApisPage() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-text-muted">
-        Demo: <span className="font-mono">Bump spec</span> pushes a rename of{" "}
-        <span className="font-mono">source → payment_method</span> and runs the pipeline.
+        <span className="font-mono">Bump spec</span> is demo-only (
+        <span className="font-mono">source → payment_method</span>).{" "}
+        <span className="font-mono">Check now</span> polls the live Stripe OpenAPI.
       </p>
       <div className="overflow-hidden rounded-md border border-border">
         <table className="w-full border-collapse text-left text-sm">
@@ -103,19 +112,23 @@ export function WatchedApisPage() {
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex justify-end gap-2">
-                    <Button
-                      onClick={() => onCheck(a.id)}
-                      disabled={busy === `check:${a.id}`}
-                    >
-                      {busy === `check:${a.id}` ? "Checking…" : "Check now"}
-                    </Button>
-                    <Button
-                      variant="primary"
-                      onClick={() => onBump(a.id)}
-                      disabled={busy === `bump:${a.id}`}
-                    >
-                      {busy === `bump:${a.id}` ? "Bumping…" : "Bump spec"}
-                    </Button>
+                    {isLiveApi(a) ? (
+                      <Button
+                        onClick={() => onCheck(a.id)}
+                        disabled={busy === `check:${a.id}`}
+                      >
+                        {busy === `check:${a.id}` ? "Checking…" : "Check now"}
+                      </Button>
+                    ) : null}
+                    {isDemoApi(a) ? (
+                      <Button
+                        variant="primary"
+                        onClick={() => onBump(a.id)}
+                        disabled={busy === `bump:${a.id}`}
+                      >
+                        {busy === `bump:${a.id}` ? "Bumping…" : "Bump spec"}
+                      </Button>
+                    ) : null}
                   </div>
                 </td>
               </tr>

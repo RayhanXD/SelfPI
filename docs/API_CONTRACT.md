@@ -14,16 +14,20 @@ List watched APIs (Watched APIs screen).
 ```json
 [
   {
-    "id": "stripe",
-    "name": "Stripe",
-    "current_version": "2026-07-01",
-    "status": "breaking_change_unhandled",
+    "id": "stripe-demo",
+    "name": "Stripe (demo)",
+    "current_version": "2026-06-01",
+    "status": "up_to_date",
     "languages": ["python"],
     "last_checked": "2026-07-26T09:00:00Z",
-    "open_change_count": 1
+    "open_change_count": 0,
+    "mode": "demo",
+    "repo": "myorg/billing-app"
   }
 ]
 ```
+
+`mode` is `"demo"` (Bump spec) or `"live"` (Check now). Do not mix demo bumps with live Stripe polls on the same API id.
 
 ### `POST /apis`
 Watch a new API.
@@ -118,6 +122,25 @@ Mark a change as handled/ignored. Response: updated change summary.
 
 ### `POST /changes/{id}/rescan`
 Re-run the scanner for this change (e.g., after repo updates). Response: `{ "call_site_count": 3, "status": "scanning" }`.
+
+### `POST /changes/{id}/open-pr`
+Open a fix PR for this change via the GitHub App. Requires call sites and configured `GITHUB_APP_*` env vars. Response: updated change summary with `status: "pr_open"` and embedded `pr`. Errors: `503` if the App is not configured, `400` if there are no call sites, `502` if GitHub rejects the request.
+
+---
+
+## Settings
+
+### `GET /settings`
+Public config for the Settings screen (no secrets).
+
+```json
+{
+  "github_configured": false,
+  "default_base_branch": "main",
+  "repo_path_set": false,
+  "hint": "Set GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, and GITHUB_APP_INSTALLATION_ID in backend/.env — see README."
+}
+```
 
 ---
 
