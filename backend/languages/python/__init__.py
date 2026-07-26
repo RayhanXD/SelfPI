@@ -8,8 +8,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from languages.python.imports import Binding, build_import_table
+from languages.python.tokenizer import tokenize as _tokenize
+
+LANGUAGE = "python"
+name = "python"
+
 # Surface method paths → canonical OpenAPI operationId (Decision 1).
-# Expand as the Stripe Python SDK surface is mapped.
 SURFACE_TO_OPERATION: dict[tuple[str, ...], str] = {
     ("Charge", "create"): "createCharge",
     ("Charge", "retrieve"): "retrieveCharge",
@@ -17,12 +22,12 @@ SURFACE_TO_OPERATION: dict[tuple[str, ...], str] = {
     ("PaymentIntent", "create"): "createPaymentIntent",
 }
 
-LANGUAGE = "python"
+OPERATION_TO_SURFACE: dict[str, tuple[str, ...]] = {
+    op: path for path, op in SURFACE_TO_OPERATION.items()
+}
 
-# Lexing hints for the tokenizer (M2 fills these in).
-COMMENT_PREFIXES = ("#",)
-STRING_DELIMITERS = ('"', "'", '"""', "'''")
-IDENTIFIER_PATTERN = r"[A-Za-z_][A-Za-z0-9_]*"
+# Default SDK root module names worth searching.
+SDK_ROOTS = ("stripe",)
 
 
 def resolve_operation_id(path: list[str]) -> str | None:
@@ -31,5 +36,27 @@ def resolve_operation_id(path: list[str]) -> str | None:
 
 
 def tokenize(source: str) -> list[dict[str, Any]]:
-    """Lex Python source. Implemented in M2."""
-    raise NotImplementedError("Python tokenizer — implement in M2")
+    """Lex Python source into a token stream."""
+    return _tokenize(source)
+
+
+def import_table(tokens: list[dict[str, Any]]) -> dict[str, Binding]:
+    return build_import_table(tokens)
+
+
+def hints_for_operation(operation_id: str, *, extra: list[str] | None = None) -> list[str]:
+    """Symbol hints for the prefilter recall net."""
+    hints: list[str] = list(SDK_ROOTS)
+    surface = OPERATION_TO_SURFACE.get(operation_id)
+    if surface:
+        hints.extend(surface)
+    if extra:
+        hints.extend(extra)
+    # Dedupe, preserve order
+    seen: set[str] = set()
+    out: list[str] = []
+    for h in hints:
+        if h and h not in seen:
+            seen.add(h)
+            out.append(h)
+    return out

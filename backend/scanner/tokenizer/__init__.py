@@ -16,4 +16,4 @@ class LanguageModule(Protocol):
 
 def tokenize(source: str, language: LanguageModule) -> list[dict[str, Any]]:
     """Lex source into a token stream via the language module."""
-    raise NotImplementedError("Tokenizer — implement in M2")
+    return language.tokenize(source)
