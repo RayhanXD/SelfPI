@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from diff.types import BreakingChange
+from typing import TYPE_CHECKING
+
 from scanner.ir.types import CallSite
+
+if TYPE_CHECKING:
+    from diff.types import BreakingChange
 
 
 def scan(

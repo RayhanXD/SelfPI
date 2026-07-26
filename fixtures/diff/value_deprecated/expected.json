@@ -1,0 +1,11 @@
+[
+  {
+    "operation_id": "createCharge",
+    "kind": "value_deprecated",
+    "detail": {
+      "param": "capture_method",
+      "value": "card",
+      "location": "parameter"
+    }
+  }
+]

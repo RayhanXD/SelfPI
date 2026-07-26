@@ -1,0 +1,12 @@
+[
+  {
+    "operation_id": "createPaymentIntent",
+    "kind": "type_changed",
+    "detail": {
+      "param": "amount",
+      "from_type": "integer",
+      "to_type": "string",
+      "location": "parameter"
+    }
+  }
+]

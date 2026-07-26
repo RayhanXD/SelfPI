@@ -1,0 +1,7 @@
+[
+  {
+    "operation_id": "createCustomer",
+    "kind": "removed_field",
+    "detail": { "field": "shipping_address", "location": "body" }
+  }
+]

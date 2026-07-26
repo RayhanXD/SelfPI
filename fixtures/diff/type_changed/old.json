@@ -1,0 +1,19 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Demo API", "version": "2026-06-01" },
+  "paths": {
+    "/v1/payment_intents": {
+      "post": {
+        "operationId": "createPaymentIntent",
+        "parameters": [
+          {
+            "name": "amount",
+            "in": "query",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    }
+  }
+}
