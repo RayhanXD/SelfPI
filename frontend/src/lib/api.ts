@@ -4,6 +4,7 @@ import type {
   ChangeListResponse,
   ChangeSummary,
   ConnectedRepo,
+  DetectApisResponse,
   ListInstallationReposResponse,
   MeResponse,
   SettingsResponse,
@@ -51,6 +52,8 @@ export const api = {
     }),
   disconnectRepo: () =>
     request<{ disconnected: boolean }>("/repos/connected", { method: "DELETE" }),
+  detectApis: () =>
+    request<DetectApisResponse>("/repos/connected/detect", { method: "POST" }),
   checkApi: (id: string) =>
     request<{ checked: boolean; new_version: string | null; changes_detected: number }>(
       `/apis/${id}/check`,

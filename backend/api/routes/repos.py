@@ -8,11 +8,13 @@ from api.auth.deps import require_login
 from api.models import (
     ConnectRepoRequest,
     ConnectedRepo,
+    DetectApisResponse,
     InstallationRepo,
     ListInstallationReposResponse,
 )
 from db.repos import connect_repo, connected_summary, disconnect_repo, get_connected_repo
 from db.settings import get_settings
+from detector import detect_and_ensure
 from patcher.github import GitHubAppClient
 
 router = APIRouter(prefix="/repos", tags=["repos"])
@@ -120,7 +122,41 @@ def connect(body: ConnectRepoRequest, _user: dict = Depends(require_login)) -> C
             detail={"error": {"code": "invalid_repo", "message": str(exc)}},
         ) from exc
 
-    return ConnectedRepo(**connected_summary(doc))  # type: ignore[arg-type]
+    detection = detect_and_ensure(
+        repo=doc["full_name"],
+        repo_path=doc.get("repo_path"),
+        connected=doc,
+    )
+    summary = connected_summary(doc) or {}
+    summary["detected_apis"] = detection["detected_apis"]
+    return ConnectedRepo(**summary)
+
+
+@router.post("/connected/detect", response_model=DetectApisResponse)
+def detect_connected_apis(_user: dict = Depends(require_login)) -> DetectApisResponse:
+    """Re-scan the connected repo checkout and ensure live watched APIs."""
+    doc = get_connected_repo()
+    if not doc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": {
+                    "code": "no_connected_repo",
+                    "message": "Connect a repository first (POST /repos/connect).",
+                }
+            },
+        )
+    detection = detect_and_ensure(
+        repo=doc["full_name"],
+        repo_path=doc.get("repo_path"),
+        connected=doc,
+    )
+    return DetectApisResponse(
+        detected_apis=detection["detected_apis"],
+        ensured=detection["ensured"],
+        repo_path=detection["repo_path"],
+        full_name=doc.get("full_name"),
+    )
 
 
 @router.delete("/connected", response_model=dict)

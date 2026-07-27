@@ -143,7 +143,12 @@ export function SettingsPage() {
     setActionOk(null);
     try {
       const doc = await api.connectRepo(selected);
-      setActionOk(`Connected ${doc.full_name}`);
+      const detected = doc.detected_apis ?? [];
+      setActionOk(
+        detected.length > 0
+          ? `Connected ${doc.full_name} · detected ${detected.join(", ")}`
+          : `Connected ${doc.full_name} · no APIs detected`,
+      );
       await refreshAll();
       await loadRepos({
         ...settings,
@@ -151,6 +156,26 @@ export function SettingsPage() {
         connected_repo: doc.full_name,
         authenticated: true,
       });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDetect() {
+    setBusy(true);
+    setActionError(null);
+    setActionOk(null);
+    try {
+      const result = await api.detectApis();
+      const detected = result.detected_apis ?? [];
+      setActionOk(
+        detected.length > 0
+          ? `Detected ${detected.join(", ")} · live watch ensured`
+          : "No APIs detected in local checkout (v1: Python + Stripe)",
+      );
+      await refreshAll();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -260,7 +285,8 @@ export function SettingsPage() {
           </h2>
           <p className="mt-1 text-[12px] leading-relaxed text-[#6e6e6e]">
             Pick a repo the GitHub App can access. SelfPI stamps it onto watched
-            APIs and opens fix PRs there when breaking changes land.
+            APIs, scans the local checkout for third-party SDKs (v1: Python +
+            Stripe), and opens fix PRs there when breaking changes land.
           </p>
         </div>
 
@@ -326,6 +352,15 @@ export function SettingsPage() {
                   >
                     {busy ? "Saving…" : "Connect repo"}
                   </Button>
+                  {connected ? (
+                    <Button
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => void onDetect()}
+                    >
+                      Detect APIs
+                    </Button>
+                  ) : null}
                   {connected ? (
                     <Button
                       variant="ghost"

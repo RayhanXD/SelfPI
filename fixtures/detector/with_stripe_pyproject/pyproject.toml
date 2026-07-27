@@ -1,0 +1,6 @@
+[project]
+name = "billing"
+dependencies = [
+  "stripe>=8.0.0",
+  "httpx",
+]

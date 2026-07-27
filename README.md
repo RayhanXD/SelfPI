@@ -96,8 +96,11 @@ On the GitHub App settings page also set:
 1. Open **Settings**
 2. Click **Login with GitHub** (requires `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`)
 3. After redirect back, pick a repo the App can access → **Connect repo**
+4. SelfPI **auto-detects APIs** from the local checkout (`repo_path` / `REPO_PATH` / `demo-consumer`). v1: **Python + Stripe** only — when Stripe is found, a live watched `stripe` API is ensured so the scheduler can poll it. Settings shows what was detected; use **Detect APIs** to re-run.
 
-Endpoints: `GET /auth/github/login`, `GET /auth/github/callback`, `GET /auth/me`, `POST /auth/logout`, plus `/repos/*` (see `docs/API_CONTRACT.md`).
+Try it: bootstrap `demo-consumer/` (`python3 scripts/bootstrap_demo_consumer.py`), connect that GitHub repo (or any connect with `REPO_PATH` / `demo-consumer` present) → response includes `detected_apis: ["stripe"]`.
+
+Endpoints: `GET /auth/github/login`, `GET /auth/github/callback`, `GET /auth/me`, `POST /auth/logout`, plus `/repos/*` including `POST /repos/connected/detect` (see `docs/API_CONTRACT.md`).
 
 When OAuth is configured and `AUTH_REQUIRED=true`, `/repos/*` returns `401` until the user is signed in. App installation credentials still open PRs; OAuth identifies the human user.
 

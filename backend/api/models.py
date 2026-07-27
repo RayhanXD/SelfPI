@@ -80,6 +80,15 @@ class ConnectedRepo(BaseModel):
     private: bool | None = None
     repo_path: str | None = None
     connected_at: str | None = None
+    # Populated by POST /repos/connect and POST /repos/connected/detect
+    detected_apis: list[str] | None = None
+
+
+class DetectApisResponse(BaseModel):
+    detected_apis: list[str] = Field(default_factory=list)
+    ensured: list[str] = Field(default_factory=list)
+    repo_path: str | None = None
+    full_name: str | None = None
 
 
 class InstallationRepo(BaseModel):

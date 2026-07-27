@@ -235,7 +235,37 @@ Current connected repo, or `null`.
 ### `POST /repos/connect`
 Bind a repo as the workspace target. Request: `{ "full_name": "myorg/billing-app", "repo_path": "/optional/local/checkout" }`.
 
-When the App is configured, `full_name` must appear in `GET /repos`. Stamps `repo` (and `repo_path` when set) onto all watched APIs. Response: connected repo object (same shape as `GET /repos/connected`).
+When the App is configured, `full_name` must appear in `GET /repos`. Stamps `repo` (and `repo_path` when set) onto all watched APIs.
+
+After connect succeeds, SelfPI **auto-detects third-party APIs** from the local checkout (`repo_path` → `REPO_PATH` → `demo-consumer/` when present). v1 wedge: **Python + Stripe only** (`import stripe` / `from stripe`, and/or `stripe` in `requirements.txt` / `pyproject.toml` / `Pipfile`). When Stripe is found, ensures a live watched API `stripe` exists (or updates the existing `stripe` doc — never invents a second conflicting id; never removes `stripe-demo`).
+
+Response: connected repo object plus `detected_apis`:
+
+```json
+{
+  "full_name": "myorg/billing-app",
+  "owner": "myorg",
+  "name": "billing-app",
+  "default_branch": "main",
+  "html_url": "https://github.com/myorg/billing-app",
+  "private": false,
+  "repo_path": "/optional/local/checkout",
+  "connected_at": "2026-07-26T21:00:00Z",
+  "detected_apis": ["stripe"]
+}
+```
+
+### `POST /repos/connected/detect`
+Re-run API detection on the connected repo checkout and ensure matching live watched APIs. Requires a connected repo (`404` with `no_connected_repo` otherwise).
+
+```json
+{
+  "detected_apis": ["stripe"],
+  "ensured": ["stripe"],
+  "repo_path": "/optional/local/checkout",
+  "full_name": "myorg/billing-app"
+}
+```
 
 ### `DELETE /repos/connected`
 Clear the connected-repo binding. Response: `{ "disconnected": true }`. Does not wipe watched API `repo` fields (re-connect to change them).

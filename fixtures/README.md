@@ -5,4 +5,5 @@
   `value_deprecated`.
 - `scanner/python/` — golden CallSite IR records for the Python scanner (M2).
 - `sample_repo/` — tiny Python app used by scanner + patcher outcome tests.
+- `detector/` — sample trees for API auto-detect (with/without Stripe) + `expected.json`.
 - `specs/` — optional full OpenAPI snapshots for demo bumps.

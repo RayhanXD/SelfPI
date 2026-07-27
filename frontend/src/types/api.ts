@@ -76,6 +76,15 @@ export interface ConnectedRepo {
   private?: boolean | null;
   repo_path?: string | null;
   connected_at?: string | null;
+  /** Filled by POST /repos/connect after auto-detect */
+  detected_apis?: string[] | null;
+}
+
+export interface DetectApisResponse {
+  detected_apis: string[];
+  ensured: string[];
+  repo_path?: string | null;
+  full_name?: string | null;
 }
 
 export interface InstallationRepo {
