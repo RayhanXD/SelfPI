@@ -28,7 +28,14 @@ def get_client() -> MongoClient:
     if _client_override is not None:
         return _client_override
     settings = get_settings()
-    return MongoClient(settings.mongodb_uri)
+    # Fail fast on Atlas cold-connect / network blips so /auth/me cannot hang
+    # for the default 30s serverSelectionTimeout (feels like a multi-minute UI).
+    return MongoClient(
+        settings.mongodb_uri,
+        serverSelectionTimeoutMS=5_000,
+        connectTimeoutMS=5_000,
+        socketTimeoutMS=20_000,
+    )
 
 
 def get_db() -> Database:

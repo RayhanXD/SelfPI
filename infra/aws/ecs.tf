@@ -71,6 +71,8 @@ resource "aws_ecs_task_definition" "api" {
         { name = "AUTH_REQUIRED", value = "true" },
         { name = "FRONTEND_URL", value = var.frontend_url },
         { name = "CORS_ORIGINS", value = local.cors_origins },
+        # Avoid GitHub network lookup on every /auth/me (install URL).
+        { name = "GITHUB_APP_SLUG", value = "selfpi" },
         {
           name  = "GITHUB_OAUTH_REDIRECT_URI"
           value = "https://${aws_cloudfront_distribution.api.domain_name}/auth/github/callback"
@@ -123,8 +125,9 @@ resource "aws_ecs_service" "api" {
     container_port   = 8000
   }
 
-  deployment_minimum_healthy_percent = 50
+  deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
+  health_check_grace_period_seconds  = 60
 
   depends_on = [aws_lb_listener.http]
 

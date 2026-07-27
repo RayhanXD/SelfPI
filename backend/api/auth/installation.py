@@ -9,19 +9,42 @@ from db.repos import get_connected_repo
 from db.settings import get_settings
 from patcher.github import GitHubAppClient
 
+# Avoid calling GitHub on every /auth/me — cache slug after first successful lookup.
+_cached_app_slug: str | None = None
 
-def install_url() -> str | None:
-    """Public install URL for strangers: https://github.com/apps/{slug}/installations/new."""
+
+def _resolved_slug(*, allow_network: bool = True) -> str | None:
+    global _cached_app_slug
     s = get_settings()
-    slug = (s.github_app_slug or "").strip() or None
-    if not slug and s.github_app_credentials_ready:
-        try:
-            info = GitHubAppClient().get_app_info()
-            slug = (info.get("slug") or "").strip() or None
-        except Exception:
-            slug = None
-    if not slug:
+    slug = (s.github_app_slug or "").strip() or _cached_app_slug
+    if slug:
+        _cached_app_slug = slug
+        return slug
+    if not allow_network or not s.github_app_credentials_ready:
         return None
+    try:
+        info = GitHubAppClient().get_app_info()
+        slug = (info.get("slug") or "").strip() or None
+    except Exception:
+        return None
+    if slug:
+        _cached_app_slug = slug
+    return slug
+
+
+def install_url(*, allow_network: bool = True) -> str | None:
+    """Public install URL for strangers: https://github.com/apps/{slug}/installations/new.
+
+    Hot paths (e.g. /auth/me) should pass allow_network=False so a slow GitHub
+    call cannot block session checks for tens of seconds.
+    """
+    s = get_settings()
+    if not s.github_app_credentials_ready:
+        return None
+    slug = _resolved_slug(allow_network=allow_network)
+    if not slug:
+        # Frontend resolves this against the API origin; github_install may network.
+        return "/auth/github/install"
     return f"https://github.com/apps/{slug}/installations/new"
 
 
@@ -67,13 +90,16 @@ def sync_installation_id(
 
 
 def installation_status(session: dict[str, Any] | None) -> dict[str, Any]:
-    """Public fields for /settings and /auth/me."""
+    """Public fields for /settings and /auth/me.
+
+    Never does a GitHub network round-trip — keep session checks snappy.
+    """
     s = get_settings()
     iid = resolve_installation_id(session)
     return {
         "github_app_ready": s.github_app_credentials_ready,
         "app_installed": bool(iid),
-        "install_url": install_url() if s.github_app_credentials_ready else None,
+        "install_url": install_url(allow_network=False),
         "installation_id": iid,
     }
 

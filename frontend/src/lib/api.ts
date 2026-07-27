@@ -24,26 +24,51 @@ export function resolveApiUrl(pathOrUrl: string): string {
   return `${apiOrigin()}${path}`;
 }
 
+const DEFAULT_TIMEOUT_MS = 12_000;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(resolveApiUrl(path), {
-    credentials: "include",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    const message =
-      body?.error?.message ??
-      (typeof body?.detail === "object" ? body.detail?.error?.message : null) ??
-      res.statusText;
-    throw new Error(message || `HTTP ${res.status}`);
+  const controller = new AbortController();
+  const timeoutMs =
+    typeof (init as { timeoutMs?: number } | undefined)?.timeoutMs === "number"
+      ? (init as { timeoutMs?: number }).timeoutMs!
+      : DEFAULT_TIMEOUT_MS;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const { timeoutMs: _ignored, signal: userSignal, ...rest } = (init ?? {}) as RequestInit & {
+      timeoutMs?: number;
+    };
+    if (userSignal) {
+      if (userSignal.aborted) controller.abort();
+      else userSignal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+    const res = await fetch(resolveApiUrl(path), {
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...(rest.headers ?? {}),
+      },
+      ...rest,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      const message =
+        body?.error?.message ??
+        (typeof body?.detail === "object" ? body.detail?.error?.message : null) ??
+        res.statusText;
+      throw new Error(message || `HTTP ${res.status}`);
+    }
+    if (res.status === 204) return undefined as T;
+    return res.json() as Promise<T>;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error("API request timed out — the backend may be waking up. Try again.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
 }
 
 export const api = {

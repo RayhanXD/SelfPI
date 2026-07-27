@@ -32,7 +32,7 @@ def exchange_code(code: str) -> str:
     s = get_settings()
     if not s.oauth_ready:
         raise RuntimeError("GitHub OAuth not configured")
-    with httpx.Client(timeout=30.0) as client:
+    with httpx.Client(timeout=10.0) as client:
         resp = client.post(
             TOKEN_URL,
             headers={"Accept": "application/json"},
@@ -60,7 +60,7 @@ def _user_headers(access_token: str) -> dict[str, str]:
 
 
 def fetch_github_user(access_token: str) -> dict[str, Any]:
-    with httpx.Client(timeout=30.0) as client:
+    with httpx.Client(timeout=10.0) as client:
         resp = client.get(f"{API_URL}/user", headers=_user_headers(access_token))
         resp.raise_for_status()
         return resp.json()
@@ -70,7 +70,7 @@ def list_user_installations(access_token: str) -> list[dict[str, Any]]:
     """Installations the user can manage (`GET /user/installations`)."""
     installations: list[dict[str, Any]] = []
     page = 1
-    with httpx.Client(timeout=30.0, headers=_user_headers(access_token)) as client:
+    with httpx.Client(timeout=10.0, headers=_user_headers(access_token)) as client:
         while True:
             resp = client.get(
                 f"{API_URL}/user/installations",

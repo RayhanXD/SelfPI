@@ -52,7 +52,7 @@ resource "aws_security_group" "alb" {
 
 resource "aws_security_group" "ecs" {
   name        = "${var.project_name}-ecs"
-  description = "Fargate tasks — only ALB may reach the API port"
+  description = "Fargate tasks - only ALB may reach the API port"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
