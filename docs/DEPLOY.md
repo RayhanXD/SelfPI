@@ -2,120 +2,101 @@
 
 Production layout:
 
-1. **Frontend** → Vercel (static Vite build in `frontend/`)
-2. **Backend** → Docker image (repo-root `Dockerfile`) on Railway / Fly / Render / any Docker host
-3. **MongoDB** → [Atlas](https://www.mongodb.com/atlas) (or any managed Mongo)
+1. **Frontend** → Vercel (Vite app in `frontend/`) + your **custom domain**
+2. **Backend** → **AWS ECS Fargate** (repo-root `Dockerfile`) — see `infra/aws/`
+3. **MongoDB** → [Atlas](https://www.mongodb.com/atlas)
 
-Local demo (`make` / `make reset`) is separate from this path. Use `INCLUDE_DEMO_APIS=false` in prod (default).
+Local demo (`make` / `make reset`) is separate. Keep `INCLUDE_DEMO_APIS=false` in prod.
 
 ---
 
-## 1. MongoDB Atlas
+## 1. Frontend (Vercel + custom domain)
 
-1. Create a free/shared cluster.
-2. Add a database user and allow your host’s IPs (or `0.0.0.0/0` if the platform has dynamic egress — tighten later).
-3. Copy the connection string (`mongodb+srv://…`).
-4. Set on the API host:
+1. Import the repo → **Root Directory:** `frontend` → Deploy.
+2. Vercel → Project → **Domains** → add your domain (DNS as Vercel instructs).
+3. After the API is up, set:
+
+```bash
+VITE_API_URL=https://YOUR-CLOUDFRONT-OR-API-HOST
+```
+
+No trailing slash. Redeploy — `VITE_*` is compile-time.
+
+Use the **custom domain** (e.g. `https://selfpi.dev`) everywhere you mean “the product URL”, not `*.vercel.app`.
+
+`frontend/vercel.json` rewrites SPA routes to `index.html`.
+
+---
+
+## 2. MongoDB Atlas
+
+1. Create a free/shared cluster + DB user.
+2. Network access: allow your host’s IPs (or `0.0.0.0/0` while Fargate has a public IP — tighten later).
+3. Connection string:
 
 ```bash
 MONGODB_URI=mongodb+srv://USER:PASS@CLUSTER.mongodb.net/?retryWrites=true&w=majority
 MONGODB_DB=selfpi
 ```
 
-Do not invent credentials in git — paste real values only in the host’s secret store.
+Paste secrets only into Terraform / AWS Secrets Manager — never git.
 
 ---
 
-## 2. Backend (Docker)
+## 3. Backend (AWS ECS Fargate)
 
-Build from the monorepo root:
+Full walkthrough: [`infra/aws/README.md`](../infra/aws/README.md).
+
+Summary:
 
 ```bash
-docker build -t selfpi-api .
-# optional local smoke with Mongo:
-docker compose up --build
-curl http://localhost:8000/health
+cd infra/aws
+cp terraform.tfvars.example terraform.tfvars
+# frontend_url = "https://YOUR-CUSTOM-DOMAIN"
+terraform init
+terraform apply -var='desired_count=0'   # until an image exists in ECR
+# push image (GitHub Actions or docker push)
+terraform apply -var='desired_count=1'
+terraform output api_url                 # → VITE_API_URL + GitHub App URLs
 ```
 
-Run on Railway / Fly / Render with this image (or connect the GitHub repo and point the Dockerfile at the repo root).
+Stack: **ECR → Fargate → ALB → CloudFront (HTTPS)**. CloudFront gives you HTTPS without putting a cert on the API domain (required for Secure cookies from the Vercel HTTPS site).
 
-### Required env
-
-| Variable | Example / notes |
-|----------|-----------------|
-| `ENV` | `production` (Secure cookies + `SameSite=None`) |
-| `MONGODB_URI` | Atlas URI |
-| `MONGODB_DB` | `selfpi` |
-| `CORS_ORIGINS` | `https://your-app.vercel.app` (comma-separated if multiple) |
-| `FRONTEND_URL` | Same origin as the Vercel app (OAuth redirects) |
-| `GITHUB_OAUTH_REDIRECT_URI` | `https://api.example.com/auth/github/callback` |
-| `SESSION_SECRET` | Long random string |
-| `GITHUB_APP_ID` | From GitHub App |
-| `GITHUB_APP_PRIVATE_KEY` | PEM contents (`\n` escaped OK) |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | App user OAuth |
-| `PORT` | Set by the host (image defaults to `8000`) |
-
-### Optional
+### Env (set via Terraform → Secrets Manager / task env)
 
 | Variable | Notes |
 |----------|--------|
-| `GITHUB_APP_INSTALLATION_ID` | **Leave empty** in multi-user prod — users install from Settings |
-| `GITHUB_APP_SLUG` | Optional; otherwise fetched via App JWT |
-| `ANTHROPIC_API_KEY` | Adjudicator / PR copy; heuristic fallback if unset |
-| `WATCH_ENABLED` / `WATCH_INTERVAL_SECONDS` | Background poller (default on / 300s) |
-| `CHECKOUT_ROOT` | Default `/app/.cache/checkouts` in the image |
-| `INCLUDE_DEMO_APIS` | Keep `false` |
+| `ENV` | `production` |
+| `MONGODB_URI` / `MONGODB_DB` | Atlas |
+| `CORS_ORIGINS` / `FRONTEND_URL` | Your **custom Vercel domain** |
+| `GITHUB_OAUTH_REDIRECT_URI` | `https://<cloudfront>/auth/github/callback` (Terraform sets this) |
+| `SESSION_SECRET` | Long random string |
+| `GITHUB_APP_*` / OAuth client | From the GitHub App |
+| `GITHUB_APP_INSTALLATION_ID` | Leave empty (multi-user installs) |
+| `INCLUDE_DEMO_APIS` | `false` |
 
-**Clones are ephemeral:** container restarts wipe `.cache/checkouts` unless you mount a volume. That is fine — connect/detect re-clones.
-
-Watcher starts in the FastAPI lifespan when `WATCH_ENABLED=true`.
-
-Full variable list: `backend/.env.example`.
+CI: [`.github/workflows/deploy-api.yml`](../.github/workflows/deploy-api.yml) builds/pushes to ECR and rolls the ECS service on pushes to `main` that touch `backend/**` or `Dockerfile`.
 
 ---
 
-## 3. GitHub App public URLs
+## 4. GitHub App public URLs
 
-On the App’s settings page, set (replace with your API origin):
+Use the CloudFront API origin from `terraform output`:
 
-- **Callback URL:** `https://api.example.com/auth/github/callback`  
-  (must match `GITHUB_OAUTH_REDIRECT_URI`)
-- **Setup URL:** `https://api.example.com/auth/github/installed`  
-  (Install App returns here with `installation_id`)
-- Generate a **Client secret**; copy **Client ID**
-- Make the App **public** if strangers should install it
-- Permissions: Contents R/W, Pull requests R/W, Metadata R
+- **Callback URL:** `…/auth/github/callback`
+- **Setup URL:** `…/auth/github/installed`
 
----
-
-## 4. Frontend (Vercel)
-
-1. New Vercel project → import this repo.
-2. **Root Directory:** `frontend`
-3. Framework: Vite (auto). Build: `npm run build`. Output: `dist`.
-4. Env:
-
-```bash
-VITE_API_URL=https://api.example.com
-```
-
-No trailing slash. Rebuild after changing it (`VITE_*` is compile-time).
-
-`frontend/vercel.json` rewrites all routes to `index.html` so `/settings`, `/auth/callback`, etc. work.
-
-Locally, leave `VITE_API_URL` empty and use `npm run dev` (Vite proxy to `:8000`).
+Permissions: Contents R/W, Pull requests R/W, Metadata R. Make the App public if others should install it.
 
 ---
 
 ## 5. Smoke checklist
 
-1. Open the Vercel URL → **Continue with GitHub** → lands on `/auth/callback` then app.
-2. **Settings** → **Install SelfPI on GitHub** → pick repos → returns to Settings with install confirmed.
-3. **Connect repo** → clone + API detection runs.
-4. Dashboard shows watched live APIs for that repo → **Check now** (or wait for the watcher).
-5. `GET https://api.example.com/health` → `{"status":"ok"}`.
+1. `curl "$(cd infra/aws && terraform output -raw api_url)/health"` → `{"status":"ok"}`
+2. Open your **custom domain** → Continue with GitHub → `/auth/callback`
+3. Settings → Install SelfPI → Connect repo → Dashboard APIs / Check now
 
-If login works but later API calls are unauthenticated: confirm `CORS_ORIGINS` includes the exact Vercel origin, `ENV=production` (or HTTPS `FRONTEND_URL`), and the browser is on HTTPS so `SameSite=None; Secure` cookies are stored.
+If login works but later calls are logged out: `CORS_ORIGINS` / `FRONTEND_URL` must match the exact custom domain (scheme + host), and `ENV=production`.
 
 ---
 
@@ -124,7 +105,13 @@ If login works but later API calls are unauthenticated: confirm `CORS_ORIGINS` i
 | Command | Effect |
 |---------|--------|
 | `make` | Local API + UI + portable mongod |
-| `make reset` | Clean prod-style seed (`INCLUDE_DEMO_APIS=false`) |
-| `make reset-demo` / `make seed-demo` | Optional Stripe demo harness |
+| `make reset` | Clean prod-style seed |
+| `make reset-demo` / `make seed-demo` | Stripe demo harness only |
 
 Do not enable the demo harness in production.
+
+---
+
+## Alternatives
+
+Railway / Fly / Render also run the same `Dockerfile`. Prefer Fargate when you want an AWS/resume-standard container story; see `infra/aws/`.

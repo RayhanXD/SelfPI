@@ -1,0 +1,25 @@
+# Copy to terraform.tfvars and fill in. Never commit terraform.tfvars.
+
+aws_region   = "us-east-1"
+project_name = "selfpi"
+
+# Your Vercel *custom domain* (no trailing slash). Prefer this over *.vercel.app.
+frontend_url = "https://selfpi.rayhanm.com/"
+# Optional: also allow the Vercel preview/default host during cutover
+# cors_origins = "https://YOUR-DOMAIN.com,https://YOUR-APP.vercel.app"
+
+mongodb_uri    = "mongodb+srv://USER:PASS@CLUSTER.mongodb.net/?retryWrites=true&w=majority"
+session_secret = "generate-a-long-random-string"
+
+github_app_id          = "123456"
+github_app_private_key = <<-EOT
+-----BEGIN RSA PRIVATE KEY-----
+...
+-----END RSA PRIVATE KEY-----
+EOT
+github_client_id     = ""
+github_client_secret = ""
+
+# optional
+# anthropic_api_key = ""
+# desired_count     = 0   # use 0 until the first image is pushed to ECR
