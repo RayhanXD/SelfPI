@@ -5,17 +5,21 @@ import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
 const meta: Record<string, { title: string; description?: string }> = {
-  "/": {
+  "/app": {
+    title: "Dashboard",
+    description: "Health of watched APIs and what needs review.",
+  },
+  "/app/apis": {
     title: "Watched APIs",
     description: "Upstream specs you monitor for breaking changes.",
   },
-  "/changes": {
+  "/app/changes": {
     title: "Inbox",
     description: "Detected changes ready for review.",
   },
-  "/settings": {
+  "/app/settings": {
     title: "Settings",
-    description: "Workspace connection and runtime configuration.",
+    description: "Connect a repo and manage workspace configuration.",
   },
 };
 
@@ -26,7 +30,7 @@ function pageMeta(pathname: string) {
       description: "Layer, confidence, and IR for every matched site.",
     };
   }
-  if (pathname.startsWith("/changes/")) {
+  if (pathname.startsWith("/app/changes/") && pathname !== "/app/changes") {
     return {
       title: "Review change",
       description: "Diff, call sites, and the proposed fix.",
@@ -41,7 +45,9 @@ export function AppShell() {
   const [repo, setRepo] = useState<string | null>(null);
   const [inboxCount, setInboxCount] = useState(0);
   const isDetail =
-    pathname.startsWith("/changes/") && !pathname.includes("/explorer");
+    pathname.startsWith("/app/changes/") &&
+    pathname !== "/app/changes" &&
+    !pathname.includes("/explorer");
 
   useEffect(() => {
     Promise.all([api.listApis(), api.getSettings()])
@@ -67,14 +73,12 @@ export function AppShell() {
               "radial-gradient(80% 80% at 70% -10%, #efc28a 0%, transparent 55%), radial-gradient(60% 70% at 30% -20%, #7aa3c4 0%, transparent 50%)",
           }}
         />
-        {!isDetail ? (
-          <TopBar title={title} description={description} />
-        ) : null}
+        {!isDetail ? <TopBar title={title} description={description} /> : null}
         <main className="relative min-h-0 flex-1 overflow-auto">
           <div
             className={[
               "mx-auto w-full",
-              isDetail ? "max-w-none px-0 py-0" : "max-w-[1040px] px-8 py-7",
+              isDetail ? "max-w-none px-0 py-0" : "max-w-[1120px] px-8 py-7",
             ].join(" ")}
           >
             <Outlet />

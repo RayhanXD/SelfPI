@@ -31,7 +31,7 @@ export function WatchedApisPage() {
       const result = await api.checkApi(id);
       reload();
       if (result.changes_detected > 0) {
-        navigate(`/changes?api_id=${id}`);
+        navigate(`/app/changes?api_id=${id}`);
       } else {
         setNotice("Check complete — no new breaking changes.");
       }
@@ -54,12 +54,12 @@ export function WatchedApisPage() {
       });
       reload();
       if (result.changes_detected > 0) {
-        navigate(`/changes?api_id=${id}`);
+        navigate(`/app/changes?api_id=${id}`);
       } else {
         setNotice(
           "Bump stored, but no new diff (demo already has payment_method). Open Changes, or run make reset then bump once.",
         );
-        navigate(`/changes?api_id=${id}`);
+        navigate(`/app/changes?api_id=${id}`);
       }
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Bump failed");
@@ -108,7 +108,7 @@ export function WatchedApisPage() {
               >
                 <td className="px-3 py-2">
                   <Link
-                    to={`/changes?api_id=${a.id}`}
+                    to={`/app/changes?api_id=${a.id}`}
                     className="text-text-primary hover:text-accent"
                   >
                     {a.name}

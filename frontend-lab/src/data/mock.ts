@@ -1,5 +1,11 @@
 import type { ApiSummary, ChangeDetail, ChangeSummary } from "../types";
 
+export const MOCK_USER = {
+  login: "rayhan",
+  name: "Rayhan Mohammad",
+  avatar_url: null as string | null,
+};
+
 export const MOCK_APIS: ApiSummary[] = [
   {
     id: "stripe-demo",
@@ -23,6 +29,17 @@ export const MOCK_APIS: ApiSummary[] = [
     repo: "myorg/billing-app",
     mode: "live",
   },
+  {
+    id: "twilio",
+    name: "Twilio",
+    current_version: "2026.05.12",
+    status: "change_detected",
+    languages: ["python"],
+    last_checked: "2026-07-26T21:40:00Z",
+    open_change_count: 1,
+    repo: "myorg/billing-app",
+    mode: "live",
+  },
 ];
 
 export const MOCK_CHANGES: ChangeSummary[] = [
@@ -43,6 +60,16 @@ export const MOCK_CHANGES: ChangeSummary[] = [
     detected_at: "2026-07-26T23:23:56Z",
   },
   {
+    id: "chg_twilio_sid",
+    api_id: "twilio",
+    operation_id: "CreateMessage",
+    kind: "removed_field",
+    call_site_count: 2,
+    status: "detected",
+    pr: null,
+    detected_at: "2026-07-26T21:41:00Z",
+  },
+  {
     id: "chg_merged_example",
     api_id: "stripe",
     operation_id: "GetCustomers",
@@ -58,6 +85,12 @@ export const MOCK_CHANGES: ChangeSummary[] = [
     },
     detected_at: "2026-07-20T14:00:00Z",
   },
+];
+
+export const MOCK_REPOS = [
+  "myorg/billing-app",
+  "myorg/payments-service",
+  "myorg/legacy-checkout",
 ];
 
 export const MOCK_CHANGE_DETAIL: ChangeDetail = {
@@ -144,3 +177,10 @@ export const MOCK_CHANGE_DETAIL: ChangeDetail = {
     },
   ],
 };
+
+/** Inbox count for sidebar — open / actionable only. */
+export function mockInboxCount() {
+  return MOCK_CHANGES.filter(
+    (c) => c.status === "detected" || c.status === "scanning" || c.status === "pr_open",
+  ).length;
+}

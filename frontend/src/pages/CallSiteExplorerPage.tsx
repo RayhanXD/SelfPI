@@ -40,7 +40,7 @@ export function CallSiteExplorerPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <Link to={`/changes/${change.id}`} className="text-text-muted hover:text-accent">
+        <Link to={`/app/changes/${change.id}`} className="text-text-muted hover:text-accent">
           ← {change.operation_id}
         </Link>
         <span className="text-text-muted">·</span>

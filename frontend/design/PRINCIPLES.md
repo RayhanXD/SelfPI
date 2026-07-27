@@ -28,7 +28,10 @@ This is shipping software for paying engineering teams someday — not an intern
 
 | Screen | Emotion |
 |--------|---------|
-| Watched APIs | At-a-glance control: what’s healthy vs on fire |
+| Landing | Clarity + ambition — “this is the product” |
+| Login | Trust — one path, GitHub |
+| Dashboard | At-a-glance control |
+| Watched APIs | What’s healthy vs on fire |
 | Inbox | Triage calm |
 | Change Detail | Confidence to merge — review cockpit |
 | Call-Site Explorer | Skepticism answered — proof, not magic |

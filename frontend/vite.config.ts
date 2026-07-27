@@ -8,6 +8,11 @@ function apiProxy(): ProxyOptions {
   return {
     target: "http://localhost:8000",
     bypass(req) {
+      const url = req.url ?? "";
+      // OAuth authorize/callback exchange must hit the API (full browser redirect).
+      if (url.startsWith("/auth/github")) {
+        return;
+      }
       const accept = req.headers.accept ?? "";
       // Full page loads request HTML; fetch() from the app requests JSON.
       if (accept.includes("text/html")) {

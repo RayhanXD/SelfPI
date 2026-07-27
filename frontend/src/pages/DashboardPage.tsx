@@ -72,17 +72,17 @@ export function DashboardPage() {
     {
       done: Boolean(settings?.github_configured),
       label: "GitHub App configured",
-      to: "/settings",
+      to: "/app/settings",
     },
     {
       done: Boolean(connectedRepo),
       label: "Repository connected",
-      to: "/settings",
+      to: "/app/settings",
     },
     {
       done: (apis?.length ?? 0) > 0,
       label: "At least one API watched",
-      to: "/apis",
+      to: "/app/apis",
     },
   ];
   const setupIncomplete = setupSteps.some((s) => !s.done);
@@ -105,7 +105,7 @@ export function DashboardPage() {
       }
       reloadApis();
       if (total > 0) {
-        navigate("/changes");
+        navigate("/app/changes");
       } else {
         setCheckMsg("All live specs checked — no new breaking changes.");
       }
@@ -142,7 +142,7 @@ export function DashboardPage() {
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => navigate("/changes")}>
+          <Button variant="secondary" onClick={() => navigate("/app/changes")}>
             Open inbox
             {stats.actionable.length > 0 ? ` · ${stats.actionable.length}` : ""}
           </Button>
@@ -227,7 +227,7 @@ export function DashboardPage() {
         <div>
           <SectionHeader
             title="Needs review"
-            action={<TextLink to="/changes">View all</TextLink>}
+            action={<TextLink to="/app/changes">View all</TextLink>}
           />
           {stats.actionable.length === 0 ? (
             <Panel className="px-5 py-8">
@@ -238,7 +238,7 @@ export function DashboardPage() {
               {stats.actionable.slice(0, 6).map((c, idx) => (
                 <Link
                   key={c.id}
-                  to={`/changes/${c.id}`}
+                  to={`/app/changes/${c.id}`}
                   className={[
                     "block px-5 py-3.5 transition-colors hover:bg-white/[0.025]",
                     idx > 0 ? "border-t border-white/[0.06]" : "",
@@ -272,7 +272,7 @@ export function DashboardPage() {
         <div>
           <SectionHeader
             title="Watched APIs"
-            action={<TextLink to="/apis">Manage</TextLink>}
+            action={<TextLink to="/app/apis">Manage</TextLink>}
           />
           {apis.length === 0 ? (
             <Panel className="px-5 py-8">
@@ -283,7 +283,7 @@ export function DashboardPage() {
               {apis.map((a, idx) => (
                 <Link
                   key={a.id}
-                  to={`/changes?api_id=${a.id}`}
+                  to={`/app/changes?api_id=${a.id}`}
                   className={[
                     "flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-white/[0.025]",
                     idx > 0 ? "border-t border-white/[0.06]" : "",
@@ -312,7 +312,7 @@ export function DashboardPage() {
       <div>
         <SectionHeader
           title="Recent activity"
-          action={<TextLink to="/changes">Inbox</TextLink>}
+          action={<TextLink to="/app/changes">Inbox</TextLink>}
         />
         {stats.recent.length === 0 ? (
           <Panel className="px-5 py-8">
@@ -323,7 +323,7 @@ export function DashboardPage() {
             {stats.recent.map((c, idx) => (
               <Link
                 key={c.id}
-                to={`/changes/${c.id}`}
+                to={`/app/changes/${c.id}`}
                 className={[
                   "group relative flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.025]",
                   idx > 0 ? "border-t border-white/[0.06]" : "",

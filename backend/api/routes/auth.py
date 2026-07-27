@@ -29,7 +29,7 @@ def github_login() -> RedirectResponse:
     s = get_settings()
     if not s.oauth_ready:
         return RedirectResponse(
-            f"{s.frontend_url.rstrip('/')}/settings?auth=error&reason=oauth_not_configured",
+            f"{s.frontend_url.rstrip('/')}/auth/callback?auth=error&reason=oauth_not_configured",
             status_code=302,
         )
     state = secrets.token_urlsafe(24)
@@ -59,7 +59,7 @@ def github_callback(
 
     def fail(reason: str) -> RedirectResponse:
         return RedirectResponse(
-            f"{frontend}/settings?{urlencode({'auth': 'error', 'reason': reason})}",
+            f"{frontend}/auth/callback?{urlencode({'auth': 'error', 'reason': reason})}",
             status_code=302,
         )
 
@@ -87,7 +87,7 @@ def github_callback(
         "html_url": gh_user.get("html_url"),
         "access_token": token,
     }
-    response = RedirectResponse(f"{frontend}/settings?auth=ok", status_code=302)
+    response = RedirectResponse(f"{frontend}/auth/callback?auth=ok", status_code=302)
     set_session_cookie(response, session)
     response.delete_cookie("selfpi_oauth_state", path="/")
     return response

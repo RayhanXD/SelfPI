@@ -104,7 +104,7 @@ export function ChangeDetailPage() {
             {busy === "dismiss" ? "…" : "Dismiss"}
           </Button>
           <Link
-            to={`/changes/${change.id}/explorer`}
+            to={`/app/changes/${change.id}/explorer`}
             className="rounded-md border border-border-strong px-2.5 py-1 text-[13px] text-text-secondary hover:bg-surface-3 hover:text-text-primary"
           >
             Call-Site Explorer →

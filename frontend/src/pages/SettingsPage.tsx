@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { EmptyState, ErrorState, SkeletonRows } from "../components/EmptyState";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { useAsync } from "../lib/useAsync";
 import type { InstallationRepo, SettingsResponse } from "../types/api";
 
 export function SettingsPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { reload: reloadAuth, logout } = useAuth();
   const {
     data: apis,
     error: apisError,
@@ -28,18 +28,6 @@ export function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionOk, setActionOk] = useState<string | null>(null);
-
-  useEffect(() => {
-    const auth = searchParams.get("auth");
-    if (!auth) return;
-    if (auth === "ok") setActionOk("Signed in with GitHub.");
-    if (auth === "error") {
-      const reason = searchParams.get("reason") || "login_failed";
-      setActionError(`GitHub login failed (${reason}).`);
-    }
-    setSearchParams({}, { replace: true });
-    reloadSettings();
-  }, [searchParams, setSearchParams, reloadSettings]);
 
   const loadRepos = useCallback(async (cfg: SettingsResponse | null) => {
     if (!cfg?.github_configured) {
@@ -119,13 +107,14 @@ export function SettingsPage() {
   async function refreshAll() {
     reloadApis();
     reloadSettings();
+    await reloadAuth();
   }
 
   async function onLogout() {
     setBusy(true);
     setActionError(null);
     try {
-      await api.logout();
+      await logout();
       setActionOk("Signed out.");
       setRepos(null);
       await refreshAll();
@@ -143,39 +132,14 @@ export function SettingsPage() {
     setActionOk(null);
     try {
       const doc = await api.connectRepo(selected);
-      const detected = doc.detected_apis ?? [];
-      setActionOk(
-        detected.length > 0
-          ? `Connected ${doc.full_name} · detected ${detected.join(", ")}`
-          : `Connected ${doc.full_name} · no APIs detected`,
-      );
+      setActionOk(`Connected ${doc.full_name}`);
       await refreshAll();
       await loadRepos({
-        ...settings,
+        ...settings!,
         github_configured: true,
         connected_repo: doc.full_name,
         authenticated: true,
       });
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onDetect() {
-    setBusy(true);
-    setActionError(null);
-    setActionOk(null);
-    try {
-      const result = await api.detectApis();
-      const detected = result.detected_apis ?? [];
-      setActionOk(
-        detected.length > 0
-          ? `Detected ${detected.join(", ")} · live watch ensured`
-          : "No APIs detected in local checkout (v1: Python + Stripe)",
-      );
-      await refreshAll();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -208,8 +172,7 @@ export function SettingsPage() {
             Account
           </h2>
           <p className="mt-1 text-[12px] leading-relaxed text-[#6e6e6e]">
-            Production auth uses Login with GitHub (OAuth). Connecting a repo
-            requires a signed-in session once OAuth is configured.
+            Sign in with GitHub to connect repositories and open fix PRs.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/[0.07] px-5 py-4">
@@ -227,7 +190,9 @@ export function SettingsPage() {
                 : "Not signed in"}
             </div>
             {settings.user?.login ? (
-              <div className="font-mono text-[11px] text-[#6e6e6e]">@{settings.user.login}</div>
+              <div className="font-mono text-[11px] text-[#6e6e6e]">
+                @{settings.user.login}
+              </div>
             ) : null}
           </div>
           {settings.authenticated ? (
@@ -242,7 +207,9 @@ export function SettingsPage() {
               Login with GitHub
             </a>
           ) : (
-            <span className="text-[12px] text-[#5c5c5c]">Set GITHUB_CLIENT_ID / SECRET</span>
+            <span className="text-[12px] text-[#5c5c5c]">
+              Set GITHUB_CLIENT_ID / SECRET
+            </span>
           )}
         </div>
       </section>
@@ -285,8 +252,7 @@ export function SettingsPage() {
           </h2>
           <p className="mt-1 text-[12px] leading-relaxed text-[#6e6e6e]">
             Pick a repo the GitHub App can access. SelfPI stamps it onto watched
-            APIs, scans the local checkout for third-party SDKs (v1: Python +
-            Stripe), and opens fix PRs there when breaking changes land.
+            APIs and opens fix PRs there when breaking changes land.
           </p>
         </div>
 
@@ -294,8 +260,8 @@ export function SettingsPage() {
           <div className="rounded-2xl border border-white/[0.07] px-5 py-4 text-[12px] leading-relaxed text-[#6e6e6e]">
             Configure the GitHub App in{" "}
             <span className="font-mono text-[#8a8a8a]">backend/.env</span> (
-            <span className="font-mono">GITHUB_APP_ID</span>, private key, installation id),
-            install it on your repos, then reload Settings.
+            <span className="font-mono">GITHUB_APP_ID</span>, private key, installation
+            id), install it on your repos, then reload Settings.
           </div>
         ) : needsLogin ? (
           <div className="space-y-3 rounded-2xl border border-white/[0.07] px-5 py-4">
@@ -352,15 +318,6 @@ export function SettingsPage() {
                   >
                     {busy ? "Saving…" : "Connect repo"}
                   </Button>
-                  {connected ? (
-                    <Button
-                      variant="ghost"
-                      disabled={busy}
-                      onClick={() => void onDetect()}
-                    >
-                      Detect APIs
-                    </Button>
-                  ) : null}
                   {connected ? (
                     <Button
                       variant="ghost"

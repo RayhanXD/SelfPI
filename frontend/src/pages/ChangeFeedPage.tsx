@@ -100,7 +100,7 @@ export function ChangeFeedPage() {
                   </td>
                   <td className="px-3 py-2">
                     <Link
-                      to={`/changes/${c.id}`}
+                      to={`/app/changes/${c.id}`}
                       className="font-mono text-text-primary hover:text-accent"
                     >
                       {c.operation_id}

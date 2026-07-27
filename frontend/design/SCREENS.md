@@ -2,7 +2,17 @@
 
 IA and interaction patterns. Wire to API contract (`docs/API_CONTRACT.md`); style per [TOKENS.md](./TOKENS.md) + [COMPONENTS.md](./COMPONENTS.md).
 
-## Shell
+## Public surface
+
+| Path | Job |
+|------|-----|
+| `/` | Marketing landing — brand, one promise, CTA into product |
+| `/login` | Sign in with GitHub (or continue without when OAuth unset) |
+| `/auth/callback` | OAuth return — reload session, route to `/app` or `/login?error=` |
+
+## Product shell (`/app/*`)
+
+Gated by `RequireAuth` when `login_required && !authenticated`.
 
 ```
 ┌──────────┬─────────────────────────────────────┐
@@ -17,7 +27,11 @@ Change Detail may **omit** the generic top bar and use a sticky in-page review h
 
 Optional: faint horizon atmosphere wash at top of main column (opacity ≤ 0.07).
 
-## Watched APIs (`/`)
+## Dashboard (`/app`)
+
+**Job:** Health overview — what needs review, setup checklist, recent activity.
+
+## Watched APIs (`/app/apis`)
 
 **Job:** What’s watched, what’s broken, trigger check/bump.
 
@@ -25,9 +39,8 @@ Optional: faint horizon atmosphere wash at top of main column (opacity ≤ 0.07)
 - Row: name · status pill · mono meta (id · version · open count)
 - Demo API: primary **Bump spec**
 - Live API: secondary **Check now**
-- Top bar actions: Check now + Add API
 
-## Inbox / Change Feed (`/changes`)
+## Inbox / Change Feed (`/app/changes`)
 
 **Job:** Triage detected changes.
 
@@ -35,41 +48,33 @@ Optional: faint horizon atmosphere wash at top of main column (opacity ≤ 0.07)
 - List rows → Change Detail
 - Row content: `operation_id` (mono) · status · api_id · kind · site count · PR # · date
 
-## Change Detail (`/changes/:id`) — money screen
+## Change Detail (`/app/changes/:id`) — money screen
 
 **Job:** Trust the fix in one pass.
 
-Recommended layout (lab direction):
-
-1. **Sticky header** — back to Inbox, `operation_id`, status, explanation, version range, actions (Dismiss / Rescan / Explorer / Open on GitHub)
+1. **Sticky header** — back to Inbox, `operation_id`, status, explanation, version range, actions
 2. **Main column** — tabs: Call sites · Spec diff · Patch
-   - Call sites: selectable list + detail panel (snippet, confidence, args, path)
-3. **Right rail** — PR card (number, checks, state) + short Trust blurb (layers)
+3. **Right rail** — PR card + Trust blurb (layers)
 
-Do not dump three equal opaque cards with no hierarchy. Call sites + PR are the review focus; spec diff/patch are evidence tabs.
-
-## Call-Site Explorer (`/changes/:id/explorer`)
+## Call-Site Explorer (`/app/changes/:id/explorer`)
 
 **Job:** Prove the scanner isn’t a black box.
 
 - Columns: location · operation_id · args · layer · confidence
 - Expand row → snippet + full CallSite JSON
 - Keyboard: ↑↓ move, Enter expand
-- Horizon underline on focused/expanded row
 
-## Settings (`/settings`)
+## Settings (`/app/settings`)
 
-Connect a GitHub repo (installation-accessible list → select → save) plus sparse runtime status (App configured, watcher interval). No theme toggle. Don’t overbuild.
+Connect a GitHub repo + account (Login with GitHub / sign out). Sparse runtime status. No theme toggle.
 
 ## Demo vs product
 
-- **Bump spec** is demo-only — label clearly in UI copy near the action
-- Don’t put demo controls in global nav as if they were product features
-- Lab (`frontend-lab`) may hardcode mock data; production uses API
+- **Bump spec** is demo-only — label clearly near the action
+- Don’t put demo controls in global nav
+- Lab (`frontend-lab`) may hardcode mock data; production uses API + OAuth
 
 ## Porting lab → production
-
-When promoting look-and-feel from `frontend-lab` to `frontend`:
 
 1. Copy/update tokens + `accents` helpers
 2. Port shell (Sidebar, TopBar, Button, StatusPill, …)
