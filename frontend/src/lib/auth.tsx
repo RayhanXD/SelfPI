@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api } from "./api";
+import { api, resolveApiUrl } from "./api";
 import type { AuthUser, MeResponse } from "../types/api";
 
 interface AuthState {
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       oauthConfigured: Boolean(me?.oauth_configured),
       loginRequired: Boolean(me?.login_required),
       user: me?.user ?? null,
-      loginUrl: me?.login_url ?? "/auth/github/login",
+      loginUrl: resolveApiUrl(me?.login_url ?? "/auth/github/login"),
       reload,
       logout,
     }),

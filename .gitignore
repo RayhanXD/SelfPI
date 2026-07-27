@@ -23,8 +23,8 @@ htmlcov/
 .tools/
 agent history/
 
-# Local SelfPI demo consumer (own git repo — do not commit into SelfPI)
-demo-consumer/
+# Local checkout cache (GitHub clones for detection)
+.cache/
 
 # Editors / OS
 .DS_Store

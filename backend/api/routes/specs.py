@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 
 from api.models import PushSpecRequest, PushSpecResponse, SpecVersionSummary
+from db.bson_safe import bson_safe
 from db.client import apis, spec_versions
 from pipeline.process import process_spec_bump
 from watcher import fingerprint as spec_fingerprint
@@ -40,13 +41,14 @@ def push_spec_version(api_id: str, body: PushSpecRequest) -> PushSpecResponse:
             detail={"error": {"code": "not_found", "message": f"API '{api_id}' not found"}},
         )
 
+    safe_spec = bson_safe(body.spec)
     spec_versions().insert_one(
         {
             "api_id": api_id,
             "version": body.version,
             "fetched_at": _now(),
-            "spec": body.spec,
-            "fingerprint": spec_fingerprint(body.spec),
+            "spec": safe_spec,
+            "fingerprint": spec_fingerprint(safe_spec),
         }
     )
     from db.settings import pr_pipeline_flags
@@ -55,7 +57,7 @@ def push_spec_version(api_id: str, body: PushSpecRequest) -> PushSpecResponse:
     result = process_spec_bump(
         api_id,
         version=body.version,
-        spec=body.spec,
+        spec=safe_spec,
         open_pr=open_pr,
         dry_run_pr=dry_run_pr,
     )

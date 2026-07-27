@@ -90,11 +90,14 @@ export interface ConnectedRepo {
   connected_at?: string | null;
   /** Filled by POST /repos/connect after auto-detect */
   detected_apis?: string[] | null;
+  /** Catalog hits with no public OpenAPI URL yet */
+  unwatchable?: string[] | null;
 }
 
 export interface DetectApisResponse {
   detected_apis: string[];
   ensured: string[];
+  unwatchable?: string[];
   repo_path?: string | null;
   full_name?: string | null;
 }

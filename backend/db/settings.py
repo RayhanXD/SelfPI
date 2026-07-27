@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     cors_origins: str = "http://localhost:5173"
+    # development | production — production enables Secure cookies + SameSite=None
+    env: str = "development"
 
     # LLM (adjudicator + PR copy) — optional; heuristic client used when unset
     anthropic_api_key: str | None = None
@@ -43,6 +45,15 @@ class Settings(BaseSettings):
     # Background watcher — polls live watched APIs on an interval
     watch_interval_seconds: int = 300
     watch_enabled: bool = True
+    # Show stripe-demo on the dashboard (local harness only). Prod default: off.
+    include_demo_apis: bool = False
+
+    @property
+    def is_production(self) -> bool:
+        """True when ENV=production/prod, or FRONTEND_URL is https (hosted UI)."""
+        if self.env.strip().lower() in ("production", "prod"):
+            return True
+        return self.frontend_url.strip().lower().startswith("https://")
 
     @property
     def github_app_credentials_ready(self) -> bool:

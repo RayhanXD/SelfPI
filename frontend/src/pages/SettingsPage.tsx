@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { EmptyState, ErrorState, SkeletonRows } from "../components/EmptyState";
-import { api } from "../lib/api";
+import { api, resolveApiUrl } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useAsync } from "../lib/useAsync";
 import type { InstallationRepo, SettingsResponse } from "../types/api";
@@ -117,7 +117,10 @@ export function SettingsPage() {
       settings.authenticated &&
       !settings.app_installed
   );
-  const installHref = settings.install_url || "/auth/github/install";
+  const installHref = resolveApiUrl(settings.install_url || "/auth/github/install");
+  const loginHref = settings.login_url
+    ? resolveApiUrl(settings.login_url)
+    : null;
 
   const rows: Array<{ label: string; value: string }> = [
     {
@@ -202,7 +205,13 @@ export function SettingsPage() {
     setActionOk(null);
     try {
       const doc = await api.connectRepo(selected);
-      setActionOk(`Connected ${doc.full_name}`);
+      const detected = doc.detected_apis?.length
+        ? ` Detected: ${doc.detected_apis.join(", ")}.`
+        : " No catalog APIs detected in the local checkout.";
+      const unwatch = doc.unwatchable?.length
+        ? ` Needs OpenAPI URL: ${doc.unwatchable.join(", ")}.`
+        : "";
+      setActionOk(`Connected ${doc.full_name}.${detected}${unwatch}`);
       await refreshAll();
       await loadRepos({
         ...settings!,
@@ -271,9 +280,9 @@ export function SettingsPage() {
             <Button variant="ghost" disabled={busy} onClick={() => void onLogout()}>
               Sign out
             </Button>
-          ) : settings.oauth_configured && settings.login_url ? (
+          ) : settings.oauth_configured && loginHref ? (
             <a
-              href={settings.login_url}
+              href={loginHref}
               className="inline-flex h-8 items-center rounded-lg bg-[#f2f2f2] px-3 text-[12px] font-medium text-[#0a0a0a] hover:bg-white"
             >
               Login with GitHub
@@ -370,9 +379,9 @@ export function SettingsPage() {
             <p className="text-[12px] leading-relaxed text-[#6e6e6e]">
               Sign in with GitHub to install the App and connect repositories.
             </p>
-            {settings.login_url ? (
+            {loginHref ? (
               <a
-                href={settings.login_url}
+                href={loginHref}
                 className="inline-flex h-8 items-center rounded-lg bg-[#f2f2f2] px-3 text-[12px] font-medium text-[#0a0a0a] hover:bg-white"
               >
                 Login with GitHub

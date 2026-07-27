@@ -1,4 +1,4 @@
-"""API auto-detection from a local repo checkout (v1: Python + Stripe).
+"""API auto-detection from a local repo checkout (catalog-driven).
 
 Fixture layout under fixtures/detector/<case>/ with expected.json:
   { "detected_apis": ["stripe"] }  or  { "detected_apis": [] }
@@ -14,7 +14,7 @@ import mongomock
 from db.client import apis, set_client_override
 from db.schemas import ensure_indexes
 from detector import detect_and_ensure, detect_apis
-from detector.ensure import STRIPE_SPEC_URL, ensure_stripe
+from detector.ensure import STRIPE_SPEC_URL, ensure_stripe, ensure_watched_api
 from languages.python.detect_apis import detect_stripe
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -58,6 +58,21 @@ def test_ensure_stripe_creates_live_doc():
     assert doc["languages"] == ["python"]
     assert doc["repo"] == "acme/billing"
     assert doc["repo_path"] == "/tmp/billing"
+    assert doc["source"] == "detected"
+
+
+def test_ensure_openai_from_catalog():
+    ensured = ensure_watched_api("openai", repo="acme/ai", repo_path="/tmp/ai")
+    assert ensured == "openai"
+    doc = apis().find_one({"_id": "openai"})
+    assert doc["name"] == "OpenAI"
+    assert doc["mode"] == "live"
+    assert "openai-openapi" in doc["spec_url"]
+
+
+def test_ensure_anthropic_unwatchable_skipped():
+    assert ensure_watched_api("anthropic", repo="acme/ai") is None
+    assert apis().find_one({"_id": "anthropic"}) is None
 
 
 def test_ensure_stripe_updates_existing_does_not_duplicate():
@@ -118,6 +133,40 @@ def test_detect_and_ensure_with_fixture_tree():
     assert doc["spec_url"] == STRIPE_SPEC_URL
 
 
+def test_detect_and_ensure_multi_ensures_all_watchable():
+    result = detect_and_ensure(
+        repo="acme/multi",
+        repo_path=FIXTURES / "with_multi",
+    )
+    assert result["detected_apis"] == ["openai", "stripe", "twilio"]
+    assert set(result["ensured"]) == {"openai", "stripe", "twilio"}
+    assert apis().find_one({"_id": "openai"})["repo"] == "acme/multi"
+    assert apis().find_one({"_id": "twilio"})["repo"] == "acme/multi"
+
+
+def test_detect_and_ensure_detaches_undetected():
+    apis().insert_one(
+        {
+            "_id": "stripe",
+            "name": "Stripe",
+            "mode": "live",
+            "spec_url": STRIPE_SPEC_URL,
+            "repo": "acme/other",
+            "source": "detected",
+            "status": "up_to_date",
+            "open_change_count": 0,
+        }
+    )
+    result = detect_and_ensure(
+        repo="acme/other",
+        repo_path=FIXTURES / "without_stripe",
+    )
+    assert result["detected_apis"] == []
+    assert result["ensured"] == []
+    doc = apis().find_one({"_id": "stripe"})
+    assert doc.get("repo") in (None, "")
+
+
 def test_detect_and_ensure_without_stripe_creates_nothing():
     result = detect_and_ensure(
         repo="acme/other",
@@ -126,6 +175,54 @@ def test_detect_and_ensure_without_stripe_creates_nothing():
     assert result["detected_apis"] == []
     assert result["ensured"] == []
     assert apis().find_one({"_id": "stripe"}) is None
+
+
+def test_list_apis_workspace_filters_to_connected_repo():
+    from api.main import app
+    from db.repos import connect_repo
+    from fastapi.testclient import TestClient
+
+    connect_repo(full_name="acme/real", propagate_to_apis=False)
+    apis().insert_one(
+        {
+            "_id": "stripe-demo",
+            "name": "Stripe (demo)",
+            "mode": "demo",
+            "repo": "RayhanXD/selfpi-demo-consumer",
+            "status": "up_to_date",
+            "open_change_count": 0,
+            "languages": [],
+        }
+    )
+    apis().insert_one(
+        {
+            "_id": "stripe",
+            "name": "Stripe",
+            "mode": "live",
+            "repo": "RayhanXD/selfpi-demo-consumer",
+            "status": "up_to_date",
+            "open_change_count": 0,
+            "languages": [],
+        }
+    )
+    apis().insert_one(
+        {
+            "_id": "openai",
+            "name": "OpenAI",
+            "mode": "live",
+            "repo": "acme/real",
+            "status": "up_to_date",
+            "open_change_count": 0,
+            "languages": ["python"],
+        }
+    )
+
+    http = TestClient(app)
+    resp = http.get("/apis")
+    assert resp.status_code == 200
+    ids = {a["id"] for a in resp.json()}
+    # Connected to acme/real → only openai; demo hidden (not demo consumer)
+    assert ids == {"openai"}
 
 
 def test_connect_returns_detected_apis():

@@ -1,0 +1,64 @@
+# Local prod-like smoke: API container + MongoDB.
+# For Atlas, omit the mongo service and set MONGODB_URI to your Atlas connection string.
+#
+#   docker compose up --build
+#   curl http://localhost:8000/health
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      ENV: production
+      PORT: "8000"
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017}
+      MONGODB_DB: ${MONGODB_DB:-selfpi}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      GITHUB_OAUTH_REDIRECT_URI: ${GITHUB_OAUTH_REDIRECT_URI:-http://localhost:8000/auth/github/callback}
+      SESSION_SECRET: ${SESSION_SECRET:-compose-dev-change-me}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-true}
+      INCLUDE_DEMO_APIS: "false"
+      WATCH_ENABLED: ${WATCH_ENABLED:-true}
+      WATCH_INTERVAL_SECONDS: ${WATCH_INTERVAL_SECONDS:-300}
+      CHECKOUT_ROOT: /app/.cache/checkouts
+      # Pass through optional secrets from your shell / .env (never commit real values)
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_APP_INSTALLATION_ID: ${GITHUB_APP_INSTALLATION_ID:-}
+      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      # Optional: persist clones across restarts (otherwise ephemeral — OK for prod)
+      - checkout_cache:/app/.cache/checkouts
+    depends_on:
+      mongo:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:
+  checkout_cache:

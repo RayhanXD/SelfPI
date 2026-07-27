@@ -93,11 +93,14 @@ class ConnectedRepo(BaseModel):
     connected_at: str | None = None
     # Populated by POST /repos/connect and POST /repos/connected/detect
     detected_apis: list[str] | None = None
+    unwatchable: list[str] | None = None
 
 
 class DetectApisResponse(BaseModel):
     detected_apis: list[str] = Field(default_factory=list)
     ensured: list[str] = Field(default_factory=list)
+    # Detected catalog ids that have no public OpenAPI URL yet.
+    unwatchable: list[str] = Field(default_factory=list)
     repo_path: str | None = None
     full_name: str | None = None
 

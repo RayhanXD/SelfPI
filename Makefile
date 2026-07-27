@@ -106,14 +106,22 @@ mongo-download:
 # --- data ------------------------------------------------------------------
 
 seed: ensure-mongo
-	@python3 $(ROOT)/scripts/bootstrap_demo_consumer.py
+	@echo "→ Ensuring indexes (prod-style — no demo APIs)…"
 	@cd $(BACKEND) && $(PYTHON) -m db.seed
 
-reset: ensure-mongo
-	@echo "→ Ensuring demo-consumer…"
+seed-demo: ensure-mongo
+	@echo "→ Bootstrapping demo-consumer + Stripe demo fixtures…"
 	@python3 $(ROOT)/scripts/bootstrap_demo_consumer.py
-	@echo "→ Resetting MongoDB to clean demo + live seed…"
+	@cd $(BACKEND) && $(PYTHON) -m db.seed --demo --force
+
+reset: ensure-mongo
+	@echo "→ Resetting MongoDB to clean prod workspace…"
 	@cd $(BACKEND) && $(PYTHON) -m db.reset
+
+reset-demo: ensure-mongo
+	@echo "→ Resetting with Stripe demo fixtures…"
+	@python3 $(ROOT)/scripts/bootstrap_demo_consumer.py
+	@cd $(BACKEND) && $(PYTHON) -m db.reset --demo
 
 # --- apps ------------------------------------------------------------------
 

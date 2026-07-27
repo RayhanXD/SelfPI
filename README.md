@@ -4,6 +4,8 @@ Watch an upstream API spec, detect breaking changes, find affected call sites in
 
 See `docs/` for the full design, PRD, engineering plan, API contract, and frontend guidelines. Follow `CLAUDE.md` for repo conventions.
 
+**Deploy (Vercel + Docker API + Atlas):** see [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
 ## Repo layout
 
 ```
@@ -27,7 +29,8 @@ make
 
 - UI:  http://localhost:5173 — **Bump spec** on `Stripe (demo)`
 - API: http://localhost:8000/health
-- Reset polluted DB: `make reset`
+- Reset polluted DB: `make reset` (clean prod-style seed — no demo APIs). Optional Stripe harness: `make reset-demo`.
+- Production deploy: [`docs/DEPLOY.md`](docs/DEPLOY.md)
 
 `make stop` kills API, UI, and local mongod.
 
@@ -101,9 +104,9 @@ On the GitHub App settings page also set:
 2. **Login with GitHub**
 3. **Install SelfPI on GitHub** → pick repos → GitHub redirects back (`/auth/github/installed`)
 4. Pick a repo → **Connect repo**
-5. SelfPI **auto-detects APIs** from the local checkout (`repo_path` / `REPO_PATH` / `demo-consumer`). v1: **Python + Stripe** only — when Stripe is found, a live watched `stripe` API is ensured so the scheduler can poll it.
+5. SelfPI **clones the repo** into `.cache/checkouts/` and **auto-detects APIs** via `backend/detector/catalog.py` (OpenAI, Stripe, Twilio, …). Dashboard shows only APIs for that connected repo.
 
-Try it: bootstrap `demo-consumer/` (`python3 scripts/bootstrap_demo_consumer.py`), connect that GitHub repo (or any connect with `REPO_PATH` / `demo-consumer` present) → response includes `detected_apis: ["stripe"]`.
+`make reset` = clean prod workspace (no demo APIs). Optional Stripe harness: `make reset-demo` / `make seed-demo`.
 
 Endpoints: `GET /auth/github/login`, `GET /auth/github/callback`, `GET /auth/github/install`, `GET /auth/github/installed`, `POST /auth/github/sync-installation`, `GET /auth/me`, `POST /auth/logout`, plus `/repos/*` including `POST /repos/connected/detect` (see `docs/API_CONTRACT.md`).
 

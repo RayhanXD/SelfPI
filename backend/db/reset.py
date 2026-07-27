@@ -1,27 +1,40 @@
-"""Reset Mongo collections to a clean demo seed (drops polluted changes/specs)."""
+"""Reset Mongo to a clean prod-style workspace (no demo APIs by default)."""
 
 from __future__ import annotations
 
-from db.client import apis, changes, get_db, spec_versions
+from db.client import apis, changes, get_db, repos, spec_versions
+from db.schemas import ensure_indexes
 from db.seed import DEMO_API_ID, LIVE_API_ID, seed
 
 
-def reset() -> dict:
-    """Delete watched-API data and re-seed demo + live APIs."""
+def reset(*, demo: bool = False) -> dict:
+    """Wipe watched-API data. Re-seed demo fixtures only when ``demo=True``."""
     db = get_db()
+    ensure_indexes(db)
     deleted = {
         "changes": changes().delete_many({}).deleted_count,
         "spec_versions": spec_versions().delete_many({}).deleted_count,
-        "apis": apis().delete_many({"_id": {"$in": [DEMO_API_ID, LIVE_API_ID]}}).deleted_count,
+        "apis": apis().delete_many({}).deleted_count,
+        "repos": repos().delete_many({}).deleted_count,
     }
-    # Also drop legacy single-id pollution if present under other names
-    _ = db  # keep import used for connection warm-up
-    seeded = seed(force=True)
-    return {"deleted": deleted, "seeded": seeded}
+    seeded = seed(force=True, demo=demo)
+    _ = db
+    return {"deleted": deleted, "seeded": seeded, "demo": demo}
 
 
 def main() -> None:
-    result = reset()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Reset SelfPI MongoDB")
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Also re-seed Stripe demo + live fixtures",
+    )
+    args = parser.parse_args()
+    # Drop legacy demo ids even when not re-seeding demo
+    _ = (DEMO_API_ID, LIVE_API_ID)
+    result = reset(demo=args.demo)
     print(f"Reset: {result}")
 
 

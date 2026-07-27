@@ -13,6 +13,7 @@ dependencies = [
   "python-dotenv>=1.0.0",
   "PyJWT[crypto]>=2.9.0",
   "itsdangerous>=2.2.0",
+  "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -44,6 +45,7 @@ include = [
   "languages*",
   "llm*",
   "pipeline*",
+  "detector*",
 ]
 
 [tool.pytest.ini_options]

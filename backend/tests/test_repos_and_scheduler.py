@@ -21,7 +21,7 @@ def teardown_function():
     set_client_override(None)
 
 
-def test_connect_repo_persists_and_propagates():
+def test_connect_repo_persists_without_stamping_all_apis():
     from api.main import app
 
     apis().insert_one(
@@ -48,15 +48,16 @@ def test_connect_repo_persists_and_propagates():
     assert body["full_name"] == "acme/billing"
     assert body["owner"] == "acme"
     assert body["name"] == "billing"
-    assert body["repo_path"] == "/tmp/billing"
+    # Path only kept if the directory exists; otherwise cleared for clone-on-detect.
+    assert body["full_name"] == "acme/billing"
 
     connected = http.get("/repos/connected")
     assert connected.status_code == 200
     assert connected.json()["full_name"] == "acme/billing"
 
+    # Prod path: do not stamp every watched API onto the new repo.
     api_doc = apis().find_one({"_id": "stripe"})
-    assert api_doc["repo"] == "acme/billing"
-    assert api_doc["repo_path"] == "/tmp/billing"
+    assert api_doc["repo"] == "old/repo"
 
     settings = http.get("/settings")
     assert settings.status_code == 200

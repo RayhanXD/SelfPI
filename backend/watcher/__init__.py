@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 
+from db.bson_safe import bson_safe
 from db.client import apis, spec_versions
 from pipeline.process import process_spec_bump
 
@@ -25,6 +26,49 @@ __all__ = [
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _parse_spec_body(resp: httpx.Response) -> dict[str, Any]:
+    """Parse OpenAPI JSON or YAML from an HTTP response."""
+    headers = getattr(resp, "headers", None) or {}
+    ctype = ""
+    if hasattr(headers, "get"):
+        ctype = str(headers.get("content-type") or "").lower()
+    url = str(getattr(resp, "url", "") or "").lower()
+    wants_yaml = (
+        "yaml" in ctype
+        or "yml" in ctype
+        or url.endswith(".yaml")
+        or url.endswith(".yml")
+    )
+
+    # Prefer JSON when the client already decoded it (also covers test fakes).
+    if not wants_yaml:
+        try:
+            data = resp.json()
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+
+    text = getattr(resp, "text", None)
+    if text is None:
+        # Last resort for odd fakes — json() already failed above.
+        data = resp.json()
+        if isinstance(data, dict):
+            return data
+        raise ValueError("Could not parse OpenAPI response as JSON or YAML")
+
+    try:
+        import yaml
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError(
+            "PyYAML is required to fetch YAML OpenAPI specs — pip install pyyaml"
+        ) from exc
+    data = yaml.safe_load(text)
+    if not isinstance(data, dict):
+        raise ValueError("OpenAPI YAML root must be a mapping")
+    return data
 
 
 def poll_api(api_id: str, *, open_pr: bool = False, dry_run_pr: bool = True) -> dict[str, Any]:
@@ -53,7 +97,7 @@ def poll_api(api_id: str, *, open_pr: bool = False, dry_run_pr: bool = True) -> 
     with httpx.Client(timeout=60.0, follow_redirects=True) as client:
         resp = client.get(spec_url)
         resp.raise_for_status()
-        spec = resp.json()
+        spec = bson_safe(_parse_spec_body(resp))
 
     version = _version_for(spec, api_doc)
     fingerprint = fingerprint_spec(spec)

@@ -26,7 +26,7 @@ Teams depend on third-party APIs. When a vendor ships a breaking change (removed
 **Non-goals (v1)**
 
 - Multi-language support beyond Python (architecture allows it; not shipped).
-- Multiple APIs beyond Stripe (architecture allows it; not shipped).
+- Multiple APIs beyond a fixed catalog: v1 detects a growing set of known Python SDKs with public OpenAPI URLs (Stripe, OpenAI, Twilio, GitHub, …); unknown vendors need a manual OpenAPI URL. Call-site→operation maps are still richest for Stripe.
 - Deep cross-statement data-flow analysis (known ceiling; documented upgrade path).
 - Auto-merging PRs. A human always reviews.
 - Handling APIs with no machine-readable spec (prose-changelog triage is a documented future lane).
@@ -48,9 +48,7 @@ Teams depend on third-party APIs. When a vendor ships a breaking change (removed
 
 ## 6. Scope — v1 slice
 
-- One API: **Stripe.**
-- One language: **Python.**
-- One connected repo.
+- One connected repo; **auto-detect** known third-party APIs from the checkout (Python catalog — Stripe plus other public OpenAPI vendors). Stripe remains the deepest call-site/fix path.
 - A **self-hosted spec** the user can bump to trigger a change on demand (also the end-to-end test harness).
 - Validation against **one real historical Stripe breaking change**.
 

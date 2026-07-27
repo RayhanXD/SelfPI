@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from api.models import ApiSummary, CheckApiResponse, CreateApiRequest
 from db.client import apis
+from db.repos import get_connected_repo
+from db.settings import get_settings
 from scanner.ir.enums import ApiStatus
 from watcher import poll_api
 
@@ -29,9 +31,43 @@ def _doc_to_summary(doc: dict) -> ApiSummary:
     )
 
 
+def _visible_docs(*, scope: str) -> list[dict]:
+    """Filter watched APIs for the dashboard.
+
+    scope=workspace (default) — APIs bound to the connected repo only.
+    Demo APIs only when INCLUDE_DEMO_APIS=true.
+    scope=all — every doc.
+    """
+    docs = list(apis().find())
+    if scope == "all":
+        return docs
+
+    connected = get_connected_repo()
+    connected_name = (connected or {}).get("full_name")
+    include_demo = bool(get_settings().include_demo_apis)
+
+    if not connected_name:
+        # Nothing connected — show only non-demo (or demo if explicitly enabled).
+        return [
+            d
+            for d in docs
+            if d.get("mode") != "demo" or include_demo
+        ]
+
+    out: list[dict] = []
+    for doc in docs:
+        if doc.get("mode") == "demo":
+            if include_demo:
+                out.append(doc)
+            continue
+        if doc.get("repo") == connected_name:
+            out.append(doc)
+    return out
+
+
 @router.get("", response_model=list[ApiSummary])
-def list_apis() -> list[ApiSummary]:
-    return [_doc_to_summary(doc) for doc in apis().find()]
+def list_apis(scope: str = Query("workspace", pattern="^(workspace|all)$")) -> list[ApiSummary]:
+    return [_doc_to_summary(doc) for doc in _visible_docs(scope=scope)]
 
 
 @router.post("", response_model=ApiSummary, status_code=201)
@@ -48,6 +84,8 @@ def create_api(body: CreateApiRequest) -> ApiSummary:
         "spec_url": body.spec_url,
         "repo": body.repo,
         "languages": body.languages,
+        "mode": "live",
+        "source": "manual",
         "current_version": None,
         "status": ApiStatus.UP_TO_DATE.value,
         "last_checked": now,

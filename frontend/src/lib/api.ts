@@ -11,10 +11,21 @@ import type {
   SettingsResponse,
 } from "../types/api";
 
-const BASE = "";
+/** API origin from Vite env. Empty in local dev (Vite proxy). Absolute in prod. */
+export function apiOrigin(): string {
+  const raw = import.meta.env.VITE_API_URL as string | undefined;
+  return (raw ?? "").replace(/\/$/, "");
+}
+
+/** Resolve a relative API path (or pass through absolute URLs). */
+export function resolveApiUrl(pathOrUrl: string): string {
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  const path = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
+  return `${apiOrigin()}${path}`;
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(resolveApiUrl(path), {
     credentials: "include",
     headers: {
       Accept: "application/json",

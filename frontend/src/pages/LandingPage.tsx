@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { BrandMark } from "../components/BrandMark";
 import { HORIZON, HORIZON_GLOW } from "../lib/accents";
+import { resolveApiUrl } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
 function GitHubMark({ className = "" }: { className?: string }) {
@@ -88,7 +89,7 @@ export function LandingPage() {
             </Link>
             {!authenticated ? (
               <a
-                href="/auth/github/login"
+                href={resolveApiUrl("/auth/github/login")}
                 className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#2e2e2e] px-4 text-[14px] font-medium text-[#f2f2f2] transition-[background-color,border-color,transform] duration-150 hover:border-[#3d3d3d] hover:bg-white/[0.04] active:scale-[0.98]"
               >
                 <GitHubMark className="size-4" />

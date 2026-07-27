@@ -32,9 +32,16 @@ def connect_repo(
     private: bool | None = None,
     repo_path: str | None = None,
     installation_id: str | None = None,
-    propagate_to_apis: bool = True,
+    propagate_to_apis: bool = False,
+    propagate_api_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Persist the connected repo and optionally stamp it onto watched APIs."""
+    """Persist the connected repo and optionally stamp it onto watched APIs.
+
+    By default does **not** stamp every watched API (avoids attaching stripe-demo
+    / seeded leftovers to an unrelated connected repo). Pass
+    `propagate_api_ids` for the detected set, or `propagate_to_apis=True` to
+    stamp all docs (legacy).
+    """
     full_name = full_name.strip()
     if "/" not in full_name:
         raise ValueError("full_name must be owner/name")
@@ -46,25 +53,40 @@ def connect_repo(
 
     existing = get_connected_repo()
     resolved_installation = installation_id or (existing or {}).get("installation_id")
+    full = f"{owner}/{name}"
+
+    # When switching to a different GitHub repo, drop the previous local path
+    # so we don't keep scanning demo-consumer for C.Y.R.U.S. (etc.).
+    if repo_path is not None:
+        resolved_path = repo_path
+    elif existing and existing.get("full_name") == full:
+        resolved_path = existing.get("repo_path")
+    else:
+        resolved_path = None
+
     doc: dict[str, Any] = {
         "_id": CONNECTED_ID,
-        "full_name": f"{owner}/{name}",
+        "full_name": full,
         "owner": owner,
         "name": name,
         "default_branch": (default_branch or (existing or {}).get("default_branch") or "main"),
         "html_url": html_url or (existing or {}).get("html_url"),
         "private": private if private is not None else (existing or {}).get("private"),
-        "repo_path": repo_path if repo_path is not None else (existing or {}).get("repo_path"),
+        "repo_path": resolved_path,
         "connected_at": _now(),
     }
     if resolved_installation:
         doc["installation_id"] = str(resolved_installation)
     repos().replace_one({"_id": CONNECTED_ID}, doc, upsert=True)
 
-    if propagate_to_apis:
-        update: dict[str, Any] = {"repo": doc["full_name"]}
-        if doc.get("repo_path"):
-            update["repo_path"] = doc["repo_path"]
+    update: dict[str, Any] = {"repo": doc["full_name"]}
+    if doc.get("repo_path"):
+        update["repo_path"] = doc["repo_path"]
+
+    if propagate_api_ids is not None:
+        if propagate_api_ids:
+            apis().update_many({"_id": {"$in": list(propagate_api_ids)}}, {"$set": update})
+    elif propagate_to_apis:
         apis().update_many({}, {"$set": update})
 
     return doc

@@ -17,9 +17,11 @@ from api.auth.installation import (
 )
 from api.auth.oauth import authorize_url, exchange_code, fetch_github_user
 from api.auth.session import (
+    clear_oauth_state_cookie,
     clear_session_cookie,
     read_session,
     session_user_public,
+    set_oauth_state_cookie,
     set_session_cookie,
 )
 from api.models import AuthUser, InstallationSyncResponse, MeResponse
@@ -41,15 +43,7 @@ def github_login() -> RedirectResponse:
     state = secrets.token_urlsafe(24)
     url = authorize_url(state=state)
     response = RedirectResponse(url, status_code=302)
-    # Short-lived state cookie for CSRF
-    response.set_cookie(
-        "selfpi_oauth_state",
-        state,
-        httponly=True,
-        samesite="lax",
-        max_age=600,
-        path="/",
-    )
+    set_oauth_state_cookie(response, state)
     return response
 
 
@@ -100,7 +94,7 @@ def github_callback(
 
     response = RedirectResponse(f"{frontend}/auth/callback?auth=ok", status_code=302)
     set_session_cookie(response, session)
-    response.delete_cookie("selfpi_oauth_state", path="/")
+    clear_oauth_state_cookie(response)
     return response
 
 

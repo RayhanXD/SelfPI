@@ -11,23 +11,29 @@ Conventions: `snake_case` fields (match the MongoDB docs), ISO-8601 UTC timestam
 ### `GET /apis`
 List watched APIs (Watched APIs screen).
 
+Query: `scope=workspace` (default) | `scope=all`.
+
+- `workspace` — when a repo is connected, only APIs whose `repo` matches that connection. The local `stripe-demo` API is included only when `INCLUDE_DEMO_APIS=true` **and** nothing is connected (or the connected repo is the demo consumer).
+- `all` — every watched API doc (debug).
+
 ```json
 [
   {
-    "id": "stripe-demo",
-    "name": "Stripe (demo)",
-    "current_version": "2026-06-01",
+    "id": "openai",
+    "name": "OpenAI",
+    "current_version": null,
     "status": "up_to_date",
     "languages": ["python"],
-    "last_checked": "2026-07-26T09:00:00Z",
+    "last_checked": null,
     "open_change_count": 0,
-    "mode": "demo",
-    "repo": "myorg/billing-app"
+    "mode": "live",
+    "repo": "myorg/billing-app",
+    "spec_url": "https://raw.githubusercontent.com/openai/openai-openapi/master/openapi.yaml"
   }
 ]
 ```
 
-`mode` is `"demo"` (Bump spec) or `"live"` (Check now). Do not mix demo bumps with live Stripe polls on the same API id.
+`mode` is `"demo"` (Bump spec) or `"live"` (Check now). Do not mix demo bumps with live polls on the same API id.
 
 ### `POST /apis`
 Watch a new API.
@@ -181,6 +187,8 @@ Redirects the browser to GitHub’s authorize URL. Sets a short-lived `selfpi_oa
 ### `GET /auth/github/callback`
 Exchanges `code` for a user token, loads `/user`, discovers this App’s installation via `GET /user/installations`, sets httponly `selfpi_session` cookie, redirects to `{FRONTEND_URL}/auth/callback?auth=ok` (or `auth=error`).
 
+In production (`ENV=production` or HTTPS `FRONTEND_URL`), session and OAuth state cookies use `Secure` + `SameSite=None` so a cross-origin Vercel frontend can call the API with `credentials: include`. Locally they use `SameSite=Lax` without `Secure`.
+
 ### `GET /auth/github/install`
 Redirects to `https://github.com/apps/{slug}/installations/new` (slug from `GITHUB_APP_SLUG` or `GET /app`).
 
@@ -259,11 +267,11 @@ Current connected repo, or `null`.
 ### `POST /repos/connect`
 Bind a repo as the workspace target. Request: `{ "full_name": "myorg/billing-app", "repo_path": "/optional/local/checkout" }`.
 
-When the App is configured, `full_name` must appear in `GET /repos`. Stamps `repo` (and `repo_path` when set) onto all watched APIs.
+When the App is configured, `full_name` must appear in `GET /repos`. Does **not** stamp every watched API onto the new repo (avoids attaching `stripe-demo` / seeded leftovers). Detection stamps only matched catalog APIs.
 
-After connect succeeds, SelfPI **auto-detects third-party APIs** from the local checkout (`repo_path` → `REPO_PATH` → `demo-consumer/` when present). v1 wedge: **Python + Stripe only** (`import stripe` / `from stripe`, and/or `stripe` in `requirements.txt` / `pyproject.toml` / `Pipfile`). When Stripe is found, ensures a live watched API `stripe` exists (or updates the existing `stripe` doc — never invents a second conflicting id; never removes `stripe-demo`).
+After connect succeeds, SelfPI **auto-detects third-party APIs** from the local checkout (`repo_path` → `REPO_PATH` → `demo-consumer/` when present) using the Python catalog in `backend/detector/catalog.py` (Stripe, OpenAI, Twilio, GitHub, Slack, Discord, Plaid, Square, Anthropic, …). Matching is recall-first on `import` / `from` and dependency manifests. For each **watchable** hit (has a public OpenAPI URL), ensures a live watched API with that id. Catalog hits without a spec URL are returned in `unwatchable` and are not ensured. Undetected catalog APIs previously bound to this repo are detached (repo cleared). Never removes `stripe-demo`.
 
-Response: connected repo object plus `detected_apis`:
+Response: connected repo object plus `detected_apis` / `unwatchable`:
 
 ```json
 {
@@ -275,7 +283,8 @@ Response: connected repo object plus `detected_apis`:
   "private": false,
   "repo_path": "/optional/local/checkout",
   "connected_at": "2026-07-26T21:00:00Z",
-  "detected_apis": ["stripe"]
+  "detected_apis": ["openai", "stripe"],
+  "unwatchable": []
 }
 ```
 
@@ -284,8 +293,9 @@ Re-run API detection on the connected repo checkout and ensure matching live wat
 
 ```json
 {
-  "detected_apis": ["stripe"],
-  "ensured": ["stripe"],
+  "detected_apis": ["openai", "stripe"],
+  "ensured": ["openai", "stripe"],
+  "unwatchable": [],
   "repo_path": "/optional/local/checkout",
   "full_name": "myorg/billing-app"
 }

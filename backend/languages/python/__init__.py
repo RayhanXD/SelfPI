@@ -1,4 +1,4 @@
-"""Python language module — lexing rules + surface→operation_id map (v1).
+"""Python language module — lexing rules + surface→operation_id map.
 
 Adding a language = adding a module under languages/. Don't scatter lang logic
 through the pipeline (CLAUDE.md golden rule 5).
@@ -8,26 +8,20 @@ from __future__ import annotations
 
 from typing import Any
 
+from detector.catalog import python_sdk_roots
 from languages.python.imports import Binding, build_import_table
+from languages.python.surfaces import SURFACE_TO_OPERATION
 from languages.python.tokenizer import tokenize as _tokenize
 
 LANGUAGE = "python"
 name = "python"
 
-# Surface method paths → canonical OpenAPI operationId (Decision 1).
-SURFACE_TO_OPERATION: dict[tuple[str, ...], str] = {
-    ("Charge", "create"): "createCharge",
-    ("Charge", "retrieve"): "retrieveCharge",
-    ("Customer", "create"): "createCustomer",
-    ("PaymentIntent", "create"): "createPaymentIntent",
-}
-
 OPERATION_TO_SURFACE: dict[str, tuple[str, ...]] = {
     op: path for path, op in SURFACE_TO_OPERATION.items()
 }
 
-# Default SDK root module names worth searching.
-SDK_ROOTS = ("stripe",)
+# Default SDK root module names worth searching (from the API catalog).
+SDK_ROOTS = python_sdk_roots()
 
 
 def resolve_operation_id(path: list[str]) -> str | None:

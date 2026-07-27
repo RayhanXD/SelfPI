@@ -1,4 +1,4 @@
-"""Seed demo + live watched APIs for local/dev bootstrap."""
+"""Seed helpers — demo APIs are opt-in; default is a clean prod-style workspace."""
 
 from __future__ import annotations
 
@@ -45,21 +45,26 @@ SEED_SPEC = DEMO_SPEC
 
 
 def _scan_repo_path() -> str:
-    """Prefer local demo-consumer when present; else fixtures/sample_repo."""
     path = Path(DEMO_CONSUMER)
     return str(path) if path.is_dir() else SAMPLE_REPO
 
 
-def seed(*, force: bool = False) -> dict:
-    """Insert seed documents if missing. Returns counts of what was written."""
+def seed(*, force: bool = False, demo: bool = False) -> dict:
+    """Ensure indexes. Optionally seed the Stripe demo harness (`demo=True`).
+
+    Default (prod-style): empty watched-API list — connect a real repo and
+    auto-detect. Pass ``demo=True`` or ``python -m db.seed --demo`` for the
+    local bump/check Stripe fixtures.
+    """
     db = get_db()
     ensure_indexes(db)
-
     written = {"apis": 0, "spec_versions": 0, "repos": 0}
+    if not demo:
+        return written
+
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     scan_path = _scan_repo_path()
 
-    # --- Demo API (Bump spec only) -----------------------------------------
     existing_demo = apis().find_one({"_id": DEMO_API_ID})
     if existing_demo is None or force:
         apis().replace_one(
@@ -76,6 +81,7 @@ def seed(*, force: bool = False) -> dict:
                 "languages": ["python"],
                 "last_checked": now,
                 "open_change_count": 0,
+                "source": "seed",
             },
             upsert=True,
         )
@@ -97,8 +103,6 @@ def seed(*, force: bool = False) -> dict:
         )
         written["spec_versions"] += 1
 
-    # --- Live Stripe (Check now only) — never seed a demo/tiny spec onto live.
-    # First successful poll stores a quiet baseline (changes_detected: 0).
     existing_live = apis().find_one({"_id": LIVE_API_ID})
     if existing_live is None or force:
         apis().replace_one(
@@ -117,32 +121,14 @@ def seed(*, force: bool = False) -> dict:
                 "languages": ["python"],
                 "last_checked": None,
                 "open_change_count": 0,
+                "source": "seed",
             },
             upsert=True,
         )
         written["apis"] += 1
-        # Force re-seed clears poisoned live priors (demo tiny under live id).
         if force:
             spec_versions().delete_many({"api_id": LIVE_API_ID})
-    else:
-        # Soft cleanup: drop demo seed if it was wrongly keyed as live Stripe.
-        for doc in list(spec_versions().find({"api_id": LIVE_API_ID})):
-            spec = doc.get("spec") or {}
-            info = spec.get("info") or {}
-            paths = spec.get("paths") or {}
-            is_demo_orphan = info.get("title") == "Stripe (demo)" or (
-                list(paths.keys()) == ["/v1/charges"] and len(paths) == 1
-            )
-            if not is_demo_orphan:
-                continue
-            spec_versions().delete_one({"_id": doc["_id"]})
-            if existing_live.get("current_version") == doc.get("version"):
-                apis().update_one(
-                    {"_id": LIVE_API_ID},
-                    {"$set": {"current_version": None}},
-                )
 
-    # --- Connected repo binding (Settings → Connect repo) ------------------
     if get_connected_repo() is None or force:
         connect_repo(
             full_name=DEMO_GITHUB_REPO,
@@ -152,7 +138,7 @@ def seed(*, force: bool = False) -> dict:
             html_url=f"https://github.com/{DEMO_GITHUB_REPO}",
             private=False,
             repo_path=scan_path,
-            propagate_to_apis=False,  # seed already set repo on APIs
+            propagate_to_apis=False,
         )
         written["repos"] = 1
 
@@ -164,8 +150,13 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Seed SelfPI MongoDB collections")
     parser.add_argument("--force", action="store_true", help="Overwrite existing seed docs")
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Seed Stripe demo + live fixtures (local harness only)",
+    )
     args = parser.parse_args()
-    result = seed(force=args.force)
+    result = seed(force=args.force, demo=args.demo)
     print(f"Seeded: {result}")
 
 
