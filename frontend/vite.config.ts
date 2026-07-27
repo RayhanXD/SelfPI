@@ -1,18 +1,33 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import type { ProxyOptions } from "vite";
+
+/** Proxy API calls to FastAPI, but let the React SPA handle browser navigations. */
+function apiProxy(): ProxyOptions {
+  return {
+    target: "http://localhost:8000",
+    bypass(req) {
+      const accept = req.headers.accept ?? "";
+      // Full page loads request HTML; fetch() from the app requests JSON.
+      if (accept.includes("text/html")) {
+        return "/index.html";
+      }
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
     proxy: {
-      "/apis": "http://localhost:8000",
-      "/changes": "http://localhost:8000",
-      "/settings": "http://localhost:8000",
-      "/repos": "http://localhost:8000",
-      "/auth": "http://localhost:8000",
-      "/health": "http://localhost:8000",
+      "/apis": apiProxy(),
+      "/changes": apiProxy(),
+      "/settings": apiProxy(),
+      "/repos": apiProxy(),
+      "/auth": apiProxy(),
+      "/health": apiProxy(),
     },
   },
 });
