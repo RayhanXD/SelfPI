@@ -23,6 +23,9 @@ htmlcov/
 .tools/
 agent history/
 
+# Local SelfPI demo consumer (own git repo — do not commit into SelfPI)
+demo-consumer/
+
 # Editors / OS
 .DS_Store
 .idea/

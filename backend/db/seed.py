@@ -9,6 +9,8 @@ from db.client import apis, get_db, spec_versions
 from db.schemas import ensure_indexes
 
 SAMPLE_REPO = str((Path(__file__).resolve().parents[2] / "fixtures" / "sample_repo").resolve())
+DEMO_CONSUMER = str((Path(__file__).resolve().parents[2] / "demo-consumer").resolve())
+DEMO_GITHUB_REPO = "RayhanXD/selfpi-demo-consumer"
 
 DEMO_API_ID = "stripe-demo"
 DEMO_VERSION = "2026-06-01"
@@ -41,6 +43,12 @@ SEED_VERSION = DEMO_VERSION
 SEED_SPEC = DEMO_SPEC
 
 
+def _scan_repo_path() -> str:
+    """Prefer local demo-consumer when present; else fixtures/sample_repo."""
+    path = Path(DEMO_CONSUMER)
+    return str(path) if path.is_dir() else SAMPLE_REPO
+
+
 def seed(*, force: bool = False) -> dict:
     """Insert seed documents if missing. Returns counts of what was written."""
     db = get_db()
@@ -48,6 +56,7 @@ def seed(*, force: bool = False) -> dict:
 
     written = {"apis": 0, "spec_versions": 0}
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    scan_path = _scan_repo_path()
 
     # --- Demo API (Bump spec only) -----------------------------------------
     existing_demo = apis().find_one({"_id": DEMO_API_ID})
@@ -59,8 +68,8 @@ def seed(*, force: bool = False) -> dict:
                 "name": "Stripe (demo)",
                 "mode": "demo",
                 "spec_url": None,
-                "repo": "RayhanXD/WishBot",
-                "repo_path": SAMPLE_REPO,
+                "repo": DEMO_GITHUB_REPO,
+                "repo_path": scan_path,
                 "current_version": DEMO_VERSION,
                 "status": "up_to_date",
                 "languages": ["python"],
@@ -99,8 +108,8 @@ def seed(*, force: bool = False) -> dict:
                 "spec_url": (
                     "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json"
                 ),
-                "repo": "RayhanXD/WishBot",
-                "repo_path": SAMPLE_REPO,
+                "repo": DEMO_GITHUB_REPO,
+                "repo_path": scan_path,
                 "current_version": None,
                 "status": "up_to_date",
                 "languages": ["python"],

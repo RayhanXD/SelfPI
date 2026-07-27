@@ -106,9 +106,12 @@ mongo-download:
 # --- data ------------------------------------------------------------------
 
 seed: ensure-mongo
+	@python3 $(ROOT)/scripts/bootstrap_demo_consumer.py
 	@cd $(BACKEND) && $(PYTHON) -m db.seed
 
 reset: ensure-mongo
+	@echo "→ Ensuring demo-consumer…"
+	@python3 $(ROOT)/scripts/bootstrap_demo_consumer.py
 	@echo "→ Resetting MongoDB to clean demo + live seed…"
 	@cd $(BACKEND) && $(PYTHON) -m db.reset
 

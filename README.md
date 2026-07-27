@@ -40,7 +40,21 @@ make
 
 Do not bump the live API or check the demo API — they are split so they cannot poison each other.
 
-## GitHub App (open real PRs)
+## Demo consumer (local test target)
+
+SelfPI scans a tiny Stripe app in `demo-consumer/` (gitignored — not part of this repo).
+
+```bash
+python3 scripts/bootstrap_demo_consumer.py   # creates folder + local git repo
+```
+
+Then:
+1. Create empty GitHub repo `RayhanXD/selfpi-demo-consumer`
+2. Install the SelfPI GitHub App on it
+3. `cd demo-consumer && git push -u origin main`
+4. `make reset` (or restart API) → Bump → Open PR
+
+Seed points `repo` / `repo_path` at that consumer when the folder exists.
 
 Without these env vars, the pipeline detects call sites but does **not** open a PR. With them set, bump/check auto-open PRs when call sites exist, and Change Detail shows **Open PR**.
 
