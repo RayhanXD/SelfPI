@@ -38,7 +38,20 @@ Response: the created API object (as above).
 Single API detail. Same shape as list item.
 
 ### `POST /apis/{id}/check`
-Manually trigger a spec poll now ("Check now" button). Response: `{ "checked": true, "new_version": "2026-07-01" | null, "changes_detected": 1 }`.
+Manually trigger a spec poll now ("Check now" button). Response:
+
+```json
+{
+  "checked": true,
+  "new_version": "2026-07-01",
+  "changes_detected": 0,
+  "baseline": true
+}
+```
+
+- `new_version` is the stored version string when the fetched fingerprint differs from the latest stored version; otherwise `null` (no store).
+- `changes_detected` is the number of breaking-change docs created for this poll.
+- `baseline: true` means this was a **first-run (or live re-)baseline**: the spec was stored, but breaking-change detection was skipped (`changes_detected` is always `0`). Live APIs (`mode: "live"`) only diff full-spec-to-full-spec — a tiny/demo prior accidentally attached to a live API is treated as no baseline and replaced quietly. Subsequent polls that differ from a real baseline create changes as usual (`baseline: false`).
 
 ---
 

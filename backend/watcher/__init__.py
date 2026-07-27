@@ -30,7 +30,11 @@ def _now() -> str:
 def poll_api(api_id: str, *, open_pr: bool = False, dry_run_pr: bool = True) -> dict[str, Any]:
     """Fetch the current spec for an API; store a new version if it changed.
 
-    Returns: { checked: bool, new_version: str | None, changes_detected: int }
+    Returns:
+      { checked, new_version, changes_detected, baseline }
+
+    First successful fetch (or live re-baseline after an unsuitable tiny prior)
+    stores the spec quietly with `baseline: true` and `changes_detected: 0`.
     """
     api_doc = apis().find_one({"_id": api_id})
     if not api_doc:
@@ -39,7 +43,12 @@ def poll_api(api_id: str, *, open_pr: bool = False, dry_run_pr: bool = True) -> 
     spec_url = api_doc.get("spec_url")
     if not spec_url:
         apis().update_one({"_id": api_id}, {"$set": {"last_checked": _now()}})
-        return {"checked": True, "new_version": None, "changes_detected": 0}
+        return {
+            "checked": True,
+            "new_version": None,
+            "changes_detected": 0,
+            "baseline": False,
+        }
 
     with httpx.Client(timeout=60.0, follow_redirects=True) as client:
         resp = client.get(spec_url)
@@ -54,7 +63,12 @@ def poll_api(api_id: str, *, open_pr: bool = False, dry_run_pr: bool = True) -> 
     )
     if latest and latest[0].get("fingerprint") == fingerprint:
         apis().update_one({"_id": api_id}, {"$set": {"last_checked": _now()}})
-        return {"checked": True, "new_version": None, "changes_detected": 0}
+        return {
+            "checked": True,
+            "new_version": None,
+            "changes_detected": 0,
+            "baseline": False,
+        }
 
     # Avoid duplicate version ids — suffix with short hash when colliding
     if spec_versions().find_one({"api_id": api_id, "version": version}):
@@ -80,6 +94,7 @@ def poll_api(api_id: str, *, open_pr: bool = False, dry_run_pr: bool = True) -> 
         "checked": True,
         "new_version": version,
         "changes_detected": result["changes_detected"],
+        "baseline": bool(result.get("baseline")),
     }
 
 

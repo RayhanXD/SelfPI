@@ -46,12 +46,24 @@ def process_spec_bump(
     """Diff the new spec against the previous stored version and process each change.
 
     Assumes the new `spec_versions` doc for `version` is already stored.
+
+    When there is no prior stored spec, or (for live APIs) the prior is not a
+    comparable full-spec baseline, this stores the bump as a quiet baseline:
+    `changes_detected: 0` and `baseline: true` — no change docs are created.
     """
     api_doc = apis().find_one({"_id": api_id})
     if not api_doc:
         raise KeyError(f"API '{api_id}' not found")
 
     prev = _previous_spec(api_id, version, from_version=from_version)
+    baseline = False
+    if prev is None:
+        baseline = True
+    elif _is_live_api(api_doc) and not is_comparable_baseline(prev.get("spec") or {}, spec):
+        # Demo/tiny prior accidentally attached to a live API — re-baseline.
+        baseline = True
+        prev = None
+
     if prev is None:
         apis().update_one(
             {"_id": api_id},
@@ -63,7 +75,7 @@ def process_spec_bump(
                 }
             },
         )
-        return {"changes_detected": 0, "change_ids": []}
+        return {"changes_detected": 0, "change_ids": [], "baseline": baseline}
 
     breaking = detect_breaking_changes(prev["spec"], spec)
     change_ids: list[str] = []
@@ -87,7 +99,7 @@ def process_spec_bump(
         change_ids.append(doc_id)
 
     _refresh_api_status(api_id, current_version=version)
-    return {"changes_detected": len(change_ids), "change_ids": change_ids}
+    return {"changes_detected": len(change_ids), "change_ids": change_ids, "baseline": False}
 
 
 def process_breaking_change(
@@ -320,3 +332,47 @@ def _previous_spec(
         .limit(1)
     )
     return docs[0] if docs else None
+
+
+def _is_live_api(api_doc: dict[str, Any]) -> bool:
+    mode = (api_doc.get("mode") or "").strip().lower()
+    if mode == "live":
+        return True
+    if mode == "demo":
+        return False
+    # Untagged APIs with a pollable URL behave like live (Check now / scheduler).
+    return bool(api_doc.get("spec_url"))
+
+
+def operation_count(spec: dict[str, Any]) -> int:
+    """Count HTTP operations under `paths` (deterministic, side-effect-free)."""
+    count = 0
+    paths = spec.get("paths") or {}
+    if not isinstance(paths, dict):
+        return 0
+    methods = ("get", "post", "put", "patch", "delete", "head", "options", "trace")
+    for path_item in paths.values():
+        if not isinstance(path_item, dict):
+            continue
+        for method in methods:
+            if method in path_item:
+                count += 1
+    return count
+
+
+def is_comparable_baseline(prev_spec: dict[str, Any], new_spec: dict[str, Any]) -> bool:
+    """Whether `prev_spec` is a real baseline for live full-spec-to-full-spec diffs.
+
+    Rejects empty or tiny priors (e.g. demo seed) when the new fetch is a large
+    live OpenAPI — those would otherwise flood `removed_field` noise.
+    """
+    prev_ops = operation_count(prev_spec)
+    new_ops = operation_count(new_spec)
+    if new_ops <= 0:
+        return prev_ops <= 0
+    if prev_ops <= 0:
+        return False
+    # Demo-sized (~1 op) vs live Stripe (~thousands): not comparable.
+    if new_ops >= 20 and prev_ops * 10 < new_ops:
+        return False
+    return True

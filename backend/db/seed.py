@@ -97,7 +97,8 @@ def seed(*, force: bool = False) -> dict:
         )
         written["spec_versions"] += 1
 
-    # --- Live Stripe (Check now only) — no seed spec; first poll stores baseline
+    # --- Live Stripe (Check now only) — never seed a demo/tiny spec onto live.
+    # First successful poll stores a quiet baseline (changes_detected: 0).
     existing_live = apis().find_one({"_id": LIVE_API_ID})
     if existing_live is None or force:
         apis().replace_one(
@@ -120,6 +121,26 @@ def seed(*, force: bool = False) -> dict:
             upsert=True,
         )
         written["apis"] += 1
+        # Force re-seed clears poisoned live priors (demo tiny under live id).
+        if force:
+            spec_versions().delete_many({"api_id": LIVE_API_ID})
+    else:
+        # Soft cleanup: drop demo seed if it was wrongly keyed as live Stripe.
+        for doc in list(spec_versions().find({"api_id": LIVE_API_ID})):
+            spec = doc.get("spec") or {}
+            info = spec.get("info") or {}
+            paths = spec.get("paths") or {}
+            is_demo_orphan = info.get("title") == "Stripe (demo)" or (
+                list(paths.keys()) == ["/v1/charges"] and len(paths) == 1
+            )
+            if not is_demo_orphan:
+                continue
+            spec_versions().delete_one({"_id": doc["_id"]})
+            if existing_live.get("current_version") == doc.get("version"):
+                apis().update_one(
+                    {"_id": LIVE_API_ID},
+                    {"$set": {"current_version": None}},
+                )
 
     # --- Connected repo binding (Settings → Connect repo) ------------------
     if get_connected_repo() is None or force:

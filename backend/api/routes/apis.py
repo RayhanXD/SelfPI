@@ -89,4 +89,5 @@ def check_api(api_id: str) -> CheckApiResponse:
         checked=bool(result.get("checked")),
         new_version=result.get("new_version"),
         changes_detected=int(result.get("changes_detected") or 0),
+        baseline=bool(result.get("baseline")),
     )

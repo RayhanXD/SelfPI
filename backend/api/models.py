@@ -114,6 +114,8 @@ class CheckApiResponse(BaseModel):
     checked: bool
     new_version: str | None = None
     changes_detected: int = 0
+    # True when this poll stored the first (or re-)baseline and skipped diffing.
+    baseline: bool = False
 
 
 class SpecDiff(BaseModel):
