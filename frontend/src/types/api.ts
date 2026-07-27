@@ -41,6 +41,35 @@ export interface SettingsResponse {
   default_base_branch: string;
   repo_path_set: boolean;
   hint?: string | null;
+  connected_repo?: string | null;
+  watch_interval_seconds?: number;
+  watch_enabled?: boolean;
+}
+
+export interface ConnectedRepo {
+  full_name: string;
+  owner: string;
+  name: string;
+  default_branch?: string | null;
+  html_url?: string | null;
+  private?: boolean | null;
+  repo_path?: string | null;
+  connected_at?: string | null;
+}
+
+export interface InstallationRepo {
+  full_name: string;
+  owner: string;
+  name: string;
+  private: boolean;
+  default_branch: string;
+  html_url?: string | null;
+  connected: boolean;
+}
+
+export interface ListInstallationReposResponse {
+  items: InstallationRepo[];
+  connected_repo?: string | null;
 }
 
 export interface PrSummary {

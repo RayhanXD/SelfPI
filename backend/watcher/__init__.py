@@ -15,6 +15,13 @@ import httpx
 from db.client import apis, spec_versions
 from pipeline.process import process_spec_bump
 
+__all__ = [
+    "poll_api",
+    "poll_api_async",
+    "fingerprint",
+    "fingerprint_spec",
+]
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

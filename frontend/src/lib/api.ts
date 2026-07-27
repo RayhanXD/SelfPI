@@ -3,6 +3,8 @@ import type {
   ChangeDetail,
   ChangeListResponse,
   ChangeSummary,
+  ConnectedRepo,
+  ListInstallationReposResponse,
   SettingsResponse,
 } from "../types/api";
 
@@ -33,6 +35,18 @@ export const api = {
   listApis: () => request<ApiSummary[]>("/apis"),
   getApi: (id: string) => request<ApiSummary>(`/apis/${id}`),
   getSettings: () => request<SettingsResponse>("/settings"),
+  listRepos: () => request<ListInstallationReposResponse>("/repos"),
+  getConnectedRepo: () => request<ConnectedRepo | null>("/repos/connected"),
+  connectRepo: (full_name: string, repo_path?: string | null) =>
+    request<ConnectedRepo>("/repos/connect", {
+      method: "POST",
+      body: JSON.stringify({
+        full_name,
+        ...(repo_path != null ? { repo_path } : {}),
+      }),
+    }),
+  disconnectRepo: () =>
+    request<{ disconnected: boolean }>("/repos/connected", { method: "DELETE" }),
   checkApi: (id: string) =>
     request<{ checked: boolean; new_version: string | null; changes_detected: number }>(
       `/apis/${id}/check`,

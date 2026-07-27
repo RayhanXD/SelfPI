@@ -44,6 +44,54 @@ class GitHubAppClient:
     def configured(self) -> bool:
         return bool(self.app_id and self.private_key and self.installation_id)
 
+    def list_installation_repos(self) -> list[dict[str, Any]]:
+        """List repositories the GitHub App installation can access.
+
+        Uses the installation token (no user OAuth). Suitable when the App is
+        already installed on the org/account. Returns slim dicts:
+        `{ full_name, owner, name, private, default_branch, html_url }`.
+        """
+        if not self.configured:
+            raise RuntimeError(
+                "GitHub App not configured "
+                "(GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / GITHUB_APP_INSTALLATION_ID)"
+            )
+
+        headers = self._auth_headers(self._installation_token())
+        repos: list[dict[str, Any]] = []
+        page = 1
+        with httpx.Client(timeout=30.0, headers=headers) as client:
+            while True:
+                resp = client.get(
+                    f"{self.api_url}/installation/repositories",
+                    params={"per_page": 100, "page": page},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                batch = data.get("repositories") or []
+                for item in batch:
+                    owner = (item.get("owner") or {}).get("login") or ""
+                    name = item.get("name") or ""
+                    full_name = item.get("full_name") or (f"{owner}/{name}" if owner and name else "")
+                    if not full_name:
+                        continue
+                    repos.append(
+                        {
+                            "full_name": full_name,
+                            "owner": owner,
+                            "name": name,
+                            "private": bool(item.get("private")),
+                            "default_branch": item.get("default_branch") or "main",
+                            "html_url": item.get("html_url"),
+                        }
+                    )
+                total = int(data.get("total_count") or 0)
+                if len(repos) >= total or not batch:
+                    break
+                page += 1
+        repos.sort(key=lambda r: r["full_name"].lower())
+        return repos
+
     def create_pull_request(
         self,
         *,
@@ -69,12 +117,7 @@ class GitHubAppClient:
             )
 
         owner, name = repo.split("/", 1)
-        token = self._installation_token()
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        }
+        headers = self._auth_headers(self._installation_token())
 
         with httpx.Client(timeout=60.0, headers=headers) as client:
             base_branch = self._resolve_base_branch(client, owner, name, base_branch)
@@ -187,6 +230,13 @@ class GitHubAppClient:
         assert last_error is not None
         raise last_error
 
+    def _auth_headers(self, token: str) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+
     def _installation_token(self) -> str:
         now = time.time()
         if self._token and now < self._token_expires_at - 60:
@@ -209,6 +259,7 @@ class GitHubAppClient:
         headers = {
             "Authorization": f"Bearer {app_jwt}",
             "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
         }
         with httpx.Client(timeout=30.0, headers=headers) as client:
             resp = client.post(

@@ -42,6 +42,18 @@ CHANGE_SCHEMA = {
     "pr": None,  # embedded { number, url, state, tests_passing, opened_at }
 }
 
+REPO_SCHEMA = {
+    "_id": "connected",  # single-user v1 — one connected workspace repo
+    "full_name": "myorg/billing-app",
+    "owner": "myorg",
+    "name": "billing-app",
+    "default_branch": "main",
+    "html_url": "https://github.com/myorg/billing-app",
+    "private": False,
+    "repo_path": "/optional/local/checkout",
+    "connected_at": "ISO-8601",
+}
+
 
 def ensure_indexes(db: Database) -> None:
     """Create indexes matching design doc access patterns."""
@@ -58,3 +70,4 @@ def ensure_indexes(db: Database) -> None:
         name="status_detected_at",
     )
     db["apis"].create_index([("status", ASCENDING)], name="status")
+    db["repos"].create_index([("full_name", ASCENDING)], name="full_name")

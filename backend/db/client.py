@@ -11,7 +11,7 @@ from pymongo.database import Database
 
 from db.settings import get_settings
 
-COLLECTIONS = ("apis", "spec_versions", "changes")
+COLLECTIONS = ("apis", "spec_versions", "changes", "repos")
 
 _client_override: Any | None = None
 
@@ -46,3 +46,7 @@ def spec_versions() -> Collection:
 
 def changes() -> Collection:
     return get_db()["changes"]
+
+
+def repos() -> Collection:
+    return get_db()["repos"]

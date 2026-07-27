@@ -138,9 +138,68 @@ Public config for the Settings screen (no secrets).
   "github_configured": false,
   "default_base_branch": "main",
   "repo_path_set": false,
+  "connected_repo": "myorg/billing-app",
+  "watch_interval_seconds": 300,
+  "watch_enabled": true,
   "hint": "Set GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, and GITHUB_APP_INSTALLATION_ID in backend/.env — see README."
 }
 ```
+
+`connected_repo` is the workspace binding from `POST /repos/connect` (or `null` if none). `watch_*` describe the background live-API poller.
+
+---
+
+## Connected repo (GitHub App)
+
+v1 uses the **GitHub App installation token** to list repos the App can already access. No user OAuth callback is required when the App is installed on the target account/org.
+
+For strangers / multi-user later: add GitHub App user-to-server OAuth (authorize → callback → user token) so a user can install the App and list personal repos. Documented in README; not required for single-user local use.
+
+### `GET /repos`
+List repositories accessible to the configured App installation.
+
+```json
+{
+  "items": [
+    {
+      "full_name": "myorg/billing-app",
+      "owner": "myorg",
+      "name": "billing-app",
+      "private": false,
+      "default_branch": "main",
+      "html_url": "https://github.com/myorg/billing-app",
+      "connected": true
+    }
+  ],
+  "connected_repo": "myorg/billing-app"
+}
+```
+
+Errors: `503` if the App is not configured, `502` if GitHub rejects the request.
+
+### `GET /repos/connected`
+Current connected repo, or `null`.
+
+```json
+{
+  "full_name": "myorg/billing-app",
+  "owner": "myorg",
+  "name": "billing-app",
+  "default_branch": "main",
+  "html_url": "https://github.com/myorg/billing-app",
+  "private": false,
+  "repo_path": "/optional/local/checkout",
+  "connected_at": "2026-07-26T21:00:00Z"
+}
+```
+
+### `POST /repos/connect`
+Bind a repo as the workspace target. Request: `{ "full_name": "myorg/billing-app", "repo_path": "/optional/local/checkout" }`.
+
+When the App is configured, `full_name` must appear in `GET /repos`. Stamps `repo` (and `repo_path` when set) onto all watched APIs. Response: connected repo object (same shape as `GET /repos/connected`).
+
+### `DELETE /repos/connected`
+Clear the connected-repo binding. Response: `{ "disconnected": true }`. Does not wipe watched API `repo` fields (re-connect to change them).
 
 ---
 
@@ -168,4 +227,5 @@ pr.state:      open | merged | closed
 
 - `call_sites` are embedded in the change document (Mongo), so `GET /changes/{id}` needs no join.
 - The confidence→color mapping and layer badges are a frontend concern (see FRONTEND_GUIDELINES §2).
-- Auth in v1 is minimal (single user); endpoints assume the GitHub App is already installed on the connected repo.
+- Auth in v1 is minimal (single user): GitHub App installation credentials in env; connect-repo lists installation-accessible repos. User OAuth is a follow-up for strangers installing the App.
+- The scheduled watcher polls only `mode: "live"` APIs with a `spec_url` (never demo bumps). Interval: `WATCH_INTERVAL_SECONDS` (default 300). Disable with `WATCH_ENABLED=false`.

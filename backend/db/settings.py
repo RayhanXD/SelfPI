@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # Local path to the connected repo checkout (scanner target)
     repo_path: str | None = None
 
+    # Background watcher — polls live watched APIs on an interval
+    watch_interval_seconds: int = 300
+    watch_enabled: bool = True
+
     @property
     def github_ready(self) -> bool:
         return bool(

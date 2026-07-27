@@ -10,6 +10,7 @@ export default defineConfig({
       "/apis": "http://localhost:8000",
       "/changes": "http://localhost:8000",
       "/settings": "http://localhost:8000",
+      "/repos": "http://localhost:8000",
       "/health": "http://localhost:8000",
     },
   },

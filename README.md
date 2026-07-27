@@ -79,7 +79,40 @@ PEM newlines can be literal multiline or escaped `\n`.
 
 5. Restart the API, run `make reset`, **Bump spec** on the demo API, open the change, click **Open PR** (or rely on auto-open when the App is configured).
 
-Settings (`/settings`) shows whether the App is configured (no secrets).
+Settings (`/settings`) shows whether the App is configured (no secrets) and lets you **Connect repository** from the App installation's accessible repos.
+
+### Connect repo (Settings)
+
+With the App installed and `GITHUB_APP_*` set:
+
+1. Open **Settings** in the UI
+2. Under **Connect repository**, pick a repo from the installation list
+3. Click **Connect repo** — SelfPI stores the binding in Mongo (`repos` collection) and stamps `repo` onto watched APIs
+
+Endpoints: `GET /repos`, `POST /repos/connect`, `GET /repos/connected`, `DELETE /repos/connected` (see `docs/API_CONTRACT.md`).
+
+v1 lists repos via the **installation token** (App already installed). User-to-server OAuth is not required for this path; add it later so strangers can install the App and authorize listing of personal repos.
+
+### Scheduled watcher
+
+The API process runs a background poller that calls the same live check path as **Check now** (`poll_api`) for every `mode: "live"` API with a `spec_url`. Demo APIs are never auto-polled.
+
+In `backend/.env`:
+
+```bash
+WATCH_ENABLED=true
+WATCH_INTERVAL_SECONDS=300   # default 300 (5 minutes); minimum effective sleep is 5s
+```
+
+Set `WATCH_ENABLED=false` to disable (tests do this automatically). Logs look like:
+
+```
+watch poll starting: 1 live api(s), open_pr=True
+watch poll stripe: no change
+watch poll finished: checked=1 changed=0 failed=0
+```
+
+PRs open only when GitHub is configured **and** call sites exist (same flags as manual check/bump).
 
 ## Backend (manual)
 

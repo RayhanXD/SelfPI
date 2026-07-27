@@ -12,6 +12,9 @@ def _disable_github_app_in_tests(monkeypatch):
     monkeypatch.setenv("GITHUB_APP_PRIVATE_KEY", "")
     monkeypatch.setenv("GITHUB_APP_INSTALLATION_ID", "")
     monkeypatch.setenv("GITHUB_DEFAULT_BASE_BRANCH", "")
+    # Keep the scheduled watcher off during TestClient lifespan
+    monkeypatch.setenv("WATCH_ENABLED", "false")
+    monkeypatch.setenv("WATCH_INTERVAL_SECONDS", "300")
 
     from db.settings import get_settings
 

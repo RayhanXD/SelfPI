@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from db.client import apis, get_db, spec_versions
+from db.repos import connect_repo, get_connected_repo
 from db.schemas import ensure_indexes
 
 SAMPLE_REPO = str((Path(__file__).resolve().parents[2] / "fixtures" / "sample_repo").resolve())
@@ -54,7 +55,7 @@ def seed(*, force: bool = False) -> dict:
     db = get_db()
     ensure_indexes(db)
 
-    written = {"apis": 0, "spec_versions": 0}
+    written = {"apis": 0, "spec_versions": 0, "repos": 0}
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     scan_path = _scan_repo_path()
 
@@ -119,6 +120,20 @@ def seed(*, force: bool = False) -> dict:
             upsert=True,
         )
         written["apis"] += 1
+
+    # --- Connected repo binding (Settings → Connect repo) ------------------
+    if get_connected_repo() is None or force:
+        connect_repo(
+            full_name=DEMO_GITHUB_REPO,
+            owner=DEMO_GITHUB_REPO.split("/", 1)[0],
+            name=DEMO_GITHUB_REPO.split("/", 1)[1],
+            default_branch="main",
+            html_url=f"https://github.com/{DEMO_GITHUB_REPO}",
+            private=False,
+            repo_path=scan_path,
+            propagate_to_apis=False,  # seed already set repo on APIs
+        )
+        written["repos"] = 1
 
     return written
 

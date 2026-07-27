@@ -45,6 +45,40 @@ class SettingsResponse(BaseModel):
     default_base_branch: str
     repo_path_set: bool
     hint: str | None = None
+    connected_repo: str | None = None
+    watch_interval_seconds: int = 300
+    watch_enabled: bool = True
+
+
+class ConnectedRepo(BaseModel):
+    full_name: str
+    owner: str
+    name: str
+    default_branch: str | None = None
+    html_url: str | None = None
+    private: bool | None = None
+    repo_path: str | None = None
+    connected_at: str | None = None
+
+
+class InstallationRepo(BaseModel):
+    full_name: str
+    owner: str
+    name: str
+    private: bool = False
+    default_branch: str = "main"
+    html_url: str | None = None
+    connected: bool = False
+
+
+class ListInstallationReposResponse(BaseModel):
+    items: list[InstallationRepo]
+    connected_repo: str | None = None
+
+
+class ConnectRepoRequest(BaseModel):
+    full_name: str
+    repo_path: str | None = None
 
 
 class CreateApiRequest(BaseModel):

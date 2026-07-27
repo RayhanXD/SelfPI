@@ -2,16 +2,31 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routes import apis_router, changes_router, settings_router, specs_router
+from api.routes import (
+    apis_router,
+    changes_router,
+    repos_router,
+    settings_router,
+    specs_router,
+)
 from db.client import get_client
 from db.schemas import ensure_indexes
 from db.settings import get_settings
+from watcher.scheduler import watch_loop
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logger = logging.getLogger("selfpi.api")
 
 
 @asynccontextmanager
@@ -19,8 +34,29 @@ async def lifespan(_app: FastAPI):
     settings = get_settings()
     client = get_client()
     ensure_indexes(client[settings.mongodb_db])
-    yield
-    client.close()
+
+    stop = asyncio.Event()
+    watch_task: asyncio.Task | None = None
+    if settings.watch_enabled and int(settings.watch_interval_seconds or 0) > 0:
+        watch_task = asyncio.create_task(watch_loop(stop), name="selfpi-watch-loop")
+        logger.info(
+            "scheduled watcher enabled (interval=%ss)",
+            settings.watch_interval_seconds,
+        )
+    else:
+        logger.info("scheduled watcher disabled")
+
+    try:
+        yield
+    finally:
+        stop.set()
+        if watch_task is not None:
+            watch_task.cancel()
+            try:
+                await watch_task
+            except asyncio.CancelledError:
+                pass
+        client.close()
 
 
 app = FastAPI(
@@ -43,6 +79,7 @@ app.include_router(apis_router)
 app.include_router(changes_router)
 app.include_router(specs_router)
 app.include_router(settings_router)
+app.include_router(repos_router)
 
 
 @app.exception_handler(Exception)
