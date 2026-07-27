@@ -48,17 +48,19 @@ class GitHubAppClient:
         self,
         *,
         repo: str,
-        base_branch: str,
         head_branch: str,
         title: str,
         body: str,
         files: dict[str, str],
         commit_message: str,
+        base_branch: str | None = None,
     ) -> dict[str, Any]:
         """Create branch from base, commit file contents, open PR.
 
         `files` maps path → full new file content.
         `repo` is `owner/name`.
+        `base_branch` is optional — when omitted (or missing on the remote),
+        uses the repository's GitHub `default_branch` (main/master/whatever).
         """
         if not self.configured:
             raise RuntimeError(
@@ -75,6 +77,7 @@ class GitHubAppClient:
         }
 
         with httpx.Client(timeout=60.0, headers=headers) as client:
+            base_branch = self._resolve_base_branch(client, owner, name, base_branch)
             base_ref = client.get(f"{self.api_url}/repos/{owner}/{name}/git/ref/heads/{base_branch}")
             base_ref.raise_for_status()
             base_sha = base_ref.json()["object"]["sha"]
@@ -148,7 +151,41 @@ class GitHubAppClient:
                 "state": data.get("state", "open"),
                 "tests_passing": None,
                 "opened_at": data.get("created_at"),
+                "base_branch": base_branch,
             }
+
+    def _resolve_base_branch(
+        self,
+        client: httpx.Client,
+        owner: str,
+        name: str,
+        preferred: str | None,
+    ) -> str:
+        """Use preferred branch if it exists; otherwise the repo default_branch."""
+        repo_info = client.get(f"{self.api_url}/repos/{owner}/{name}")
+        repo_info.raise_for_status()
+        default = (repo_info.json().get("default_branch") or "").strip()
+        if not default:
+            raise RuntimeError(f"Repository {owner}/{name} has no default_branch")
+
+        candidates: list[str] = []
+        if preferred and preferred.strip():
+            candidates.append(preferred.strip())
+        if default not in candidates:
+            candidates.append(default)
+
+        last_error: Exception | None = None
+        for branch in candidates:
+            ref = client.get(f"{self.api_url}/repos/{owner}/{name}/git/ref/heads/{branch}")
+            if ref.status_code == 200:
+                return branch
+            last_error = httpx.HTTPStatusError(
+                f"Branch '{branch}' not found on {owner}/{name}",
+                request=ref.request,
+                response=ref,
+            )
+        assert last_error is not None
+        raise last_error
 
     def _installation_token(self) -> str:
         now = time.time()
@@ -156,7 +193,9 @@ class GitHubAppClient:
             return self._token
 
         if jwt is None:
-            raise RuntimeError("PyJWT is required for GitHub App auth — pip install PyJWT cryptography")
+            raise RuntimeError(
+                "PyJWT is required for GitHub App auth — pip install PyJWT cryptography"
+            )
 
         app_jwt = jwt.encode(
             {

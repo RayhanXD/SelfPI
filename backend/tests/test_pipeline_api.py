@@ -154,12 +154,15 @@ def test_open_pr_updates_status_with_fake_github(monkeypatch):
         configured = True
 
         def create_pull_request(self, **kwargs):
+            # Prefer auto-resolved base when caller passes None
+            assert "base_branch" in kwargs
             return {
                 "number": 7,
                 "url": "https://github.com/myorg/billing-app/pull/7",
                 "state": "open",
                 "tests_passing": None,
                 "opened_at": "2026-07-01T00:10:00Z",
+                "base_branch": kwargs.get("base_branch") or "master",
             }
 
     monkeypatch.setattr(settings_mod, "github_ready", lambda: True)
@@ -195,10 +198,13 @@ def test_open_pr_updates_status_with_fake_github(monkeypatch):
 
 def test_settings_reports_github_not_configured():
     from api.main import app
+    from db.settings import get_settings
 
+    get_settings.cache_clear()
     http = TestClient(app)
     resp = http.get("/settings")
     assert resp.status_code == 200
     body = resp.json()
     assert body["github_configured"] is False
     assert "GITHUB_APP" in (body.get("hint") or "")
+    assert body["default_base_branch"] == "(repo default)"

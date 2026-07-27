@@ -59,7 +59,7 @@ def seed(*, force: bool = False) -> dict:
                 "name": "Stripe (demo)",
                 "mode": "demo",
                 "spec_url": None,
-                "repo": "myorg/billing-app",
+                "repo": "RayhanXD/WishBot",
                 "repo_path": SAMPLE_REPO,
                 "current_version": DEMO_VERSION,
                 "status": "up_to_date",
@@ -99,7 +99,7 @@ def seed(*, force: bool = False) -> dict:
                 "spec_url": (
                     "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json"
                 ),
-                "repo": "myorg/billing-app",
+                "repo": "RayhanXD/WishBot",
                 "repo_path": SAMPLE_REPO,
                 "current_version": None,
                 "status": "up_to_date",

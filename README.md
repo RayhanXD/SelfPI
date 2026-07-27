@@ -55,7 +55,8 @@ Without these env vars, the pipeline detects call sites but does **not** open a 
 GITHUB_APP_ID=123456
 GITHUB_APP_INSTALLATION_ID=12345678
 GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
-GITHUB_DEFAULT_BASE_BRANCH=main
+# Optional — leave empty to use each repo's GitHub default branch (main/master/…)
+GITHUB_DEFAULT_BASE_BRANCH=
 ```
 
 PEM newlines can be literal multiline or escaped `\n`.

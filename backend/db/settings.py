@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     github_app_id: str | None = None
     github_app_private_key: str | None = None
     github_app_installation_id: str | None = None
-    github_default_base_branch: str = "main"
+    github_default_base_branch: str = ""  # empty = use each repo's GitHub default_branch
 
     # Local path to the connected repo checkout (scanner target)
     repo_path: str | None = None

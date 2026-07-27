@@ -50,7 +50,7 @@ def generate_and_open_pr(
     *,
     repo: str,
     repo_path: str | Path,
-    base_branch: str = "main",
+    base_branch: str | None = None,
     dry_run: bool = False,
     llm: LlmClient | None = None,
     github: GitHubAppClient | None = None,
@@ -60,9 +60,18 @@ def generate_and_open_pr(
     Returns PR metadata matching the API contract `pr` embed shape, plus
     `edited_files` and `dry_run`.
     """
+    from db.settings import get_settings
+
     edits = build_edits(repo_path, call_sites, change)
     title, body = _pr_copy(call_sites, change, edits, llm=llm)
     commit_message = title
+    # Optional override only — GitHubAppClient resolves repo default_branch when None.
+    settings = get_settings()
+    preferred_base = base_branch if base_branch is not None else (
+        settings.github_default_base_branch.strip() or None
+        if settings.github_default_base_branch
+        else None
+    )
 
     if dry_run or not edits:
         if dry_run and edits:
@@ -96,12 +105,12 @@ def generate_and_open_pr(
             "note": "GitHub App not configured; applied locally as dry-run",
         }
 
-    branch = f"selfpi/{change.operation_id}-{change.kind.value}".replace("_", "-")[:60]
+    head = f"selfpi/{change.operation_id}-{change.kind.value}".replace("_", "-")[:60]
     files = {e.path: e.new_content for e in edits}
     pr = client.create_pull_request(
         repo=repo,
-        base_branch=base_branch,
-        head_branch=branch,
+        base_branch=preferred_base,
+        head_branch=head,
         title=title,
         body=body,
         files=files,

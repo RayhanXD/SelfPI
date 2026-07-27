@@ -21,15 +21,19 @@ export function WatchedApisPage() {
   const { data: apis, error, loading, reload } = useAsync(() => api.listApis(), []);
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const onCheck = async (id: string) => {
     setBusy(`check:${id}`);
     setActionError(null);
+    setNotice(null);
     try {
       const result = await api.checkApi(id);
       reload();
       if (result.changes_detected > 0) {
         navigate(`/changes?api_id=${id}`);
+      } else {
+        setNotice("Check complete — no new breaking changes.");
       }
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Check failed");
@@ -41,6 +45,7 @@ export function WatchedApisPage() {
   const onBump = async (id: string) => {
     setBusy(`bump:${id}`);
     setActionError(null);
+    setNotice(null);
     try {
       const version = `demo-${Date.now()}`;
       const result = await api.pushSpecVersion(id, version, {
@@ -49,6 +54,11 @@ export function WatchedApisPage() {
       });
       reload();
       if (result.changes_detected > 0) {
+        navigate(`/changes?api_id=${id}`);
+      } else {
+        setNotice(
+          "Bump stored, but no new diff (demo already has payment_method). Open Changes, or run make reset then bump once.",
+        );
         navigate(`/changes?api_id=${id}`);
       }
     } catch (e) {
@@ -70,7 +80,14 @@ export function WatchedApisPage() {
         <span className="font-mono">Bump spec</span> is demo-only (
         <span className="font-mono">source → payment_method</span>).{" "}
         <span className="font-mono">Check now</span> polls the live Stripe OpenAPI.
+        After the first successful bump, run <span className="font-mono">make reset</span> to
+        bump again.
       </p>
+      {notice ? (
+        <p className="rounded-md border border-border bg-surface-1 px-3 py-2 text-xs text-text-secondary">
+          {notice}
+        </p>
+      ) : null}
       <div className="overflow-hidden rounded-md border border-border">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 bg-surface-2">

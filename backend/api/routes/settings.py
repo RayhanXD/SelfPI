@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from api.models import SettingsResponse
-from db.settings import get_settings, github_ready
+from db.settings import get_settings
 
 router = APIRouter(tags=["settings"])
 
@@ -13,10 +13,11 @@ router = APIRouter(tags=["settings"])
 @router.get("/settings", response_model=SettingsResponse)
 def get_public_settings() -> SettingsResponse:
     s = get_settings()
-    configured = github_ready()
+    configured = s.github_ready
+    base = (s.github_default_base_branch or "").strip() or "(repo default)"
     return SettingsResponse(
         github_configured=configured,
-        default_base_branch=s.github_default_base_branch,
+        default_base_branch=base,
         repo_path_set=bool(s.repo_path),
         hint=(
             None
