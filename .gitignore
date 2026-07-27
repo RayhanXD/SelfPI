@@ -40,3 +40,4 @@ frontend/.vite/
 # Logs
 *.log
 npm-debug.log*
+demo-consumer
