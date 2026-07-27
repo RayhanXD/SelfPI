@@ -53,6 +53,9 @@ class SettingsResponse(BaseModel):
     authenticated: bool = False
     user: AuthUser | None = None
     login_url: str | None = None
+    # Install App onboarding (public)
+    app_installed: bool = False
+    install_url: str | None = None
 
 
 class AuthUser(BaseModel):
@@ -69,6 +72,14 @@ class MeResponse(BaseModel):
     login_required: bool
     user: AuthUser | None = None
     login_url: str | None = None
+    app_installed: bool = False
+    install_url: str | None = None
+
+
+class InstallationSyncResponse(BaseModel):
+    app_installed: bool
+    install_url: str | None = None
+    installation_id: str | None = None
 
 
 class ConnectedRepo(BaseModel):

@@ -75,6 +75,10 @@ def test_repos_ok_with_session_cookie(monkeypatch):
         "db.settings.Settings.github_ready",
         property(lambda self: False),
     )
+    monkeypatch.setattr(
+        "db.settings.Settings.github_app_credentials_ready",
+        property(lambda self: False),
+    )
 
     http = TestClient(app)
     token = dump_session(
@@ -82,7 +86,7 @@ def test_repos_ok_with_session_cookie(monkeypatch):
     )
     http.cookies.set(COOKIE_NAME, token)
 
-    # github not ready → 503 after auth passes
+    # App credentials missing → 503 after auth passes
     resp = http.get("/repos")
     assert resp.status_code == 503
 

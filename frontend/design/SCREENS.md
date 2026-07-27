@@ -70,13 +70,6 @@ Connect a GitHub repo + account (Login with GitHub / sign out). Sparse runtime s
 
 ## Demo vs product
 
-- **Bump spec** is demo-only — label clearly near the action
+- **Bump spec / Simulate change** is demo-only — label clearly near the action
 - Don’t put demo controls in global nav
-- Lab (`frontend-lab`) may hardcode mock data; production uses API + OAuth
-
-## Porting lab → production
-
-1. Copy/update tokens + `accents` helpers
-2. Port shell (Sidebar, TopBar, Button, StatusPill, …)
-3. Adapt pages to real `api.*` hooks (keep structure)
-4. Keep this `design/` docs folder updated if anything diverged on purpose
+- All product UI lives in `frontend/src` against the real API + OAuth

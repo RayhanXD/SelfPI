@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 /*
-  SelfPI — black/white base, dusk horizon accent.
-  Canonical: frontend/design/TOKENS.md
+  SelfPI lab — black/white base, dusk horizon accent.
+  Craft inspired by Linear; identity is our own (Jakarta + Plex).
 */
 
 @theme {
@@ -50,15 +50,22 @@
     color: var(--color-text-primary);
     font-family: var(--font-sans);
     font-size: 13.5px;
-    letter-spacing: -0.015em;
     line-height: 1.5;
+    letter-spacing: -0.015em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   :focus-visible {
-    outline: 2px solid #7aa3c4;
-    outline-offset: 2px;
+    outline: none;
+    box-shadow:
+      0 0 0 1px #050505,
+      0 0 0 3px color-mix(in srgb, #7aa3c4 50%, transparent);
+  }
+
+  ::selection {
+    background: color-mix(in srgb, #d989a5 28%, transparent);
   }
 
   a {
@@ -66,10 +73,7 @@
     text-decoration: none;
   }
 
-  button,
-  input,
-  select,
-  textarea {
+  button {
     font-family: inherit;
   }
 
@@ -80,39 +84,30 @@
   }
 }
 
-@keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
+@layer utilities {
+  .horizon {
+    background-image: linear-gradient(
+      90deg,
+      #e8a07a 0%,
+      #efc28a 20%,
+      #d989a5 45%,
+      #9a8fc0 70%,
+      #7aa3c4 100%
+    );
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
-@keyframes horizon-drift {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 0.85;
+  .ease-out-expo {
+    transition-timing-function: var(--ease-out-expo);
   }
 }
 
-.animate-fade-up {
-  animation: fade-up 0.7s var(--ease-out-expo) both;
-}
-
-.animate-fade-up-delay {
-  animation: fade-up 0.7s var(--ease-out-expo) 0.12s both;
-}
-
-.animate-fade-up-delay-2 {
-  animation: fade-up 0.7s var(--ease-out-expo) 0.24s both;
-}
-
-.animate-horizon {
-  animation: horizon-drift 8s ease-in-out infinite;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

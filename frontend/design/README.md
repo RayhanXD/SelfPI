@@ -1,7 +1,7 @@
 # SelfPI Design System
 
 **Canonical visual identity for the SelfPI frontend.**  
-Living prototype: `frontend-lab/` (port `5180`). Production app: `frontend/src/`.
+Product UI: `frontend/src/` → http://localhost:5173 (API-wired).
 
 Anyone building UI (human or agent) should read this folder **before** changing styles, tokens, or shared components.
 
@@ -21,7 +21,6 @@ SelfPI is a **startup-grade developer product**: watch API specs, find breaking-
 
 1. This folder (`frontend/design/`) — visual identity & how to build
 2. `docs/FRONTEND_GUIDELINES.md` — screen inventory + product UX rules (defers here for tokens)
-3. `frontend-lab/` — reference implementation of the look
-4. `frontend/src/` — production wiring to the API
+3. `frontend/src/` — production implementation (wired to the API)
 
-When tokens or horizon values change, update **TOKENS.md** and the lab (`frontend-lab/src/lib/accents.ts` + `index.css`) in the same change, then port to `frontend/src`.
+When tokens or horizon values change, update **TOKENS.md** and `frontend/src/lib/accents.ts` + `index.css` in the same change.

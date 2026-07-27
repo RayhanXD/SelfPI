@@ -1,5 +1,6 @@
 import { Link, Navigate, useSearchParams } from "react-router-dom";
-import { HORIZON, HORIZON_GLOW, HORIZON_SOFT } from "../lib/accents";
+import { BrandMark } from "../components/BrandMark";
+import { HORIZON, HORIZON_GLOW } from "../lib/accents";
 import { useAuth } from "../lib/auth";
 
 function GitHubMark({ className = "" }: { className?: string }) {
@@ -46,14 +47,7 @@ export function LoginPage() {
 
       <header className="relative z-10 px-6 py-5 md:px-8">
         <Link to="/" className="inline-flex items-center gap-2.5">
-          <span
-            aria-hidden
-            className="size-5 rounded-md"
-            style={{
-              backgroundImage: HORIZON_SOFT,
-              boxShadow: `0 0 0 1px rgba(255,255,255,0.1), ${HORIZON_GLOW}`,
-            }}
-          />
+          <BrandMark size={20} />
           <span className="text-[15px] font-semibold tracking-[-0.03em] text-white">
             SelfPI
           </span>

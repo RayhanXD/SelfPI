@@ -40,4 +40,4 @@ This is shipping software for paying engineering teams someday — not an intern
 
 - **Vercel** — black / white restraint; accent used almost never
 - **Linear** — density, focus, micro-polish, list interactions
-- **SelfPI lab** — dusk horizon identity, Jakarta + Plex
+- **SelfPI product** — dusk horizon identity, Jakarta + Plex, `BrandMark`

@@ -21,7 +21,11 @@ class Settings(BaseSettings):
     # GitHub App (patcher opens PRs) — optional; dry-run local apply when unset
     github_app_id: str | None = None
     github_app_private_key: str | None = None
+    # Optional env fallback for single-tenant / local demo. Public installs
+    # discover installation_id via Login + Install App (stored on session / connected repo).
     github_app_installation_id: str | None = None
+    # Optional slug for install URL; when empty, fetched from GET /app via App JWT.
+    github_app_slug: str | None = None
     github_default_base_branch: str = ""  # empty = use each repo's GitHub default_branch
 
     # GitHub App user OAuth ("Login with GitHub")
@@ -41,11 +45,15 @@ class Settings(BaseSettings):
     watch_enabled: bool = True
 
     @property
+    def github_app_credentials_ready(self) -> bool:
+        """App ID + private key — enough to mint JWTs and serve Install App."""
+        return bool(self.github_app_id and self.github_app_private_key)
+
+    @property
     def github_ready(self) -> bool:
+        """Env has full App config including a default installation id."""
         return bool(
-            self.github_app_id
-            and self.github_app_private_key
-            and self.github_app_installation_id
+            self.github_app_credentials_ready and self.github_app_installation_id
         )
 
     @property
@@ -64,8 +72,16 @@ def get_settings() -> Settings:
 
 
 def github_ready() -> bool:
-    """True when GitHub App credentials are present (real PRs can be opened)."""
-    return get_settings().github_ready
+    """True when real PRs can be opened (credentials + some installation id)."""
+    s = get_settings()
+    if not s.github_app_credentials_ready:
+        return False
+    if s.github_app_installation_id:
+        return True
+    from db.repos import get_connected_repo
+
+    doc = get_connected_repo()
+    return bool(doc and doc.get("installation_id"))
 
 
 def pr_pipeline_flags() -> tuple[bool, bool]:

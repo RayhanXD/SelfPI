@@ -5,18 +5,16 @@ const toneClass: Record<Tone, string> = {
   warn: "bg-warn",
   danger: "bg-danger",
   info: "bg-info",
-  muted: "bg-text-muted",
+  muted: "bg-text-faint",
 };
 
-interface StatusPillProps {
-  label: string;
-  tone: Tone;
-}
-
-export function StatusPill({ label, tone }: StatusPillProps) {
+export function StatusPill({ label, tone }: { label: string; tone: Tone }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-text-secondary">
-      <span className={`inline-block size-1.5 rounded-full ${toneClass[tone]}`} aria-hidden />
+    <span className="inline-flex items-center gap-1.5 text-[12px] tracking-[-0.01em] text-[#a8a8a8]">
+      <span
+        className={`inline-block size-[6px] shrink-0 rounded-full ${toneClass[tone]}`}
+        aria-hidden
+      />
       <span>{label}</span>
     </span>
   );

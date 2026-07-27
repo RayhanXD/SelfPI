@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { EmptyState, ErrorState, SkeletonRows } from "../components/EmptyState";
 import { api } from "../lib/api";
@@ -7,6 +8,7 @@ import { useAsync } from "../lib/useAsync";
 import type { InstallationRepo, SettingsResponse } from "../types/api";
 
 export function SettingsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { reload: reloadAuth, logout } = useAuth();
   const {
     data: apis,
@@ -40,6 +42,11 @@ export function SettingsPage() {
       setReposError(null);
       return;
     }
+    if (!cfg.app_installed) {
+      setRepos(null);
+      setReposError(null);
+      return;
+    }
     setReposLoading(true);
     setReposError(null);
     try {
@@ -62,6 +69,40 @@ export function SettingsPage() {
     if (settings) void loadRepos(settings);
   }, [settings, loadRepos]);
 
+  // After GitHub Install App redirect (?installed=1), sync + refresh.
+  useEffect(() => {
+    const installed = searchParams.get("installed");
+    if (installed !== "1" && installed !== "0") return;
+
+    void (async () => {
+      setBusy(true);
+      setActionError(null);
+      try {
+        if (installed === "1") {
+          await api.syncInstallation();
+          setActionOk("SelfPI is installed on GitHub. Pick a repository below.");
+        } else {
+          setActionError(
+            searchParams.get("reason") === "no_installation"
+              ? "Install did not complete — try Install SelfPI on GitHub again."
+              : "Could not confirm the App installation."
+          );
+        }
+        await reloadAuth();
+        reloadSettings();
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+        const next = new URLSearchParams(searchParams);
+        next.delete("installed");
+        next.delete("setup_action");
+        next.delete("reason");
+        setSearchParams(next, { replace: true });
+      }
+    })();
+  }, [searchParams, setSearchParams, reloadAuth, reloadSettings]);
+
   const error = apisError ?? settingsError;
   if (error) return <ErrorState message={error} />;
   if (apisLoading || settingsLoading || !apis || !settings) {
@@ -71,6 +112,12 @@ export function SettingsPage() {
   const primary = apis.find((a) => a.mode === "live") ?? apis[0];
   const connected = settings.connected_repo ?? primary?.repo ?? null;
   const needsLogin = Boolean(settings.login_required && !settings.authenticated);
+  const needsInstall = Boolean(
+    settings.github_configured &&
+      settings.authenticated &&
+      !settings.app_installed
+  );
+  const installHref = settings.install_url || "/auth/github/install";
 
   const rows: Array<{ label: string; value: string }> = [
     {
@@ -83,7 +130,11 @@ export function SettingsPage() {
     },
     {
       label: "GitHub App",
-      value: settings.github_configured ? "Configured" : "Not configured",
+      value: !settings.github_configured
+        ? "Not configured"
+        : settings.app_installed
+          ? "Installed"
+          : "Ready — install on GitHub",
     },
     { label: "Default base branch", value: settings.default_base_branch },
     {
@@ -125,6 +176,25 @@ export function SettingsPage() {
     }
   }
 
+  async function onSyncInstall() {
+    setBusy(true);
+    setActionError(null);
+    setActionOk(null);
+    try {
+      const status = await api.syncInstallation();
+      if (status.app_installed) {
+        setActionOk("Found your GitHub App installation.");
+      } else {
+        setActionError("No installation found yet — install SelfPI on GitHub first.");
+      }
+      await refreshAll();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onConnect() {
     if (!selected) return;
     setBusy(true);
@@ -137,6 +207,7 @@ export function SettingsPage() {
       await loadRepos({
         ...settings!,
         github_configured: true,
+        app_installed: true,
         connected_repo: doc.full_name,
         authenticated: true,
       });
@@ -172,7 +243,8 @@ export function SettingsPage() {
             Account
           </h2>
           <p className="mt-1 text-[12px] leading-relaxed text-[#6e6e6e]">
-            Sign in with GitHub to connect repositories and open fix PRs.
+            Sign in with GitHub, install SelfPI on the repos you care about, then
+            connect one here.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/[0.07] px-5 py-4">
@@ -213,6 +285,35 @@ export function SettingsPage() {
           )}
         </div>
       </section>
+
+      {needsInstall ? (
+        <section className="max-w-lg space-y-3">
+          <div>
+            <h2 className="text-[13px] font-medium tracking-[-0.01em] text-[#f2f2f2]">
+              Install SelfPI
+            </h2>
+            <p className="mt-1 text-[12px] leading-relaxed text-[#6e6e6e]">
+              Grant SelfPI access to the repositories you want watched. After
+              install, GitHub returns you here to connect a repo.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.07] px-5 py-4">
+            <a
+              href={installHref}
+              className="inline-flex h-8 items-center rounded-lg bg-[#f2f2f2] px-3 text-[12px] font-medium text-[#0a0a0a] hover:bg-white"
+            >
+              Install SelfPI on GitHub
+            </a>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => void onSyncInstall()}
+            >
+              I already installed — refresh
+            </Button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="text-[13px] font-medium tracking-[-0.01em] text-[#f2f2f2]">
@@ -258,15 +359,16 @@ export function SettingsPage() {
 
         {!settings.github_configured ? (
           <div className="rounded-2xl border border-white/[0.07] px-5 py-4 text-[12px] leading-relaxed text-[#6e6e6e]">
-            Configure the GitHub App in{" "}
+            Configure the GitHub App on the server in{" "}
             <span className="font-mono text-[#8a8a8a]">backend/.env</span> (
-            <span className="font-mono">GITHUB_APP_ID</span>, private key, installation
-            id), install it on your repos, then reload Settings.
+            <span className="font-mono">GITHUB_APP_ID</span>, private key). Users
+            install the App from this screen — no{" "}
+            <span className="font-mono">INSTALLATION_ID</span> required.
           </div>
         ) : needsLogin ? (
           <div className="space-y-3 rounded-2xl border border-white/[0.07] px-5 py-4">
             <p className="text-[12px] leading-relaxed text-[#6e6e6e]">
-              Sign in with GitHub to list and connect repositories.
+              Sign in with GitHub to install the App and connect repositories.
             </p>
             {settings.login_url ? (
               <a
@@ -277,17 +379,46 @@ export function SettingsPage() {
               </a>
             ) : null}
           </div>
+        ) : needsInstall ? (
+          <div className="rounded-2xl border border-white/[0.07] px-5 py-4 text-[12px] leading-relaxed text-[#6e6e6e]">
+            Install SelfPI on GitHub first (section above), then connect a repo.
+          </div>
         ) : (
           <div className="space-y-3 rounded-2xl border border-white/[0.07] px-5 py-4">
             {reposLoading ? (
               <p className="text-[12px] text-[#6e6e6e]">Loading installation repos…</p>
             ) : reposError ? (
-              <p className="text-[12px] text-[#f2555a]">{reposError}</p>
+              <div className="space-y-2">
+                <p className="text-[12px] text-[#f2555a]">{reposError}</p>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={installHref}
+                    className="inline-flex h-8 items-center rounded-lg border border-white/[0.1] px-3 text-[12px] text-[#f2f2f2] hover:bg-white/[0.04]"
+                  >
+                    Install / update on GitHub
+                  </a>
+                  <Button
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => void onSyncInstall()}
+                  >
+                    Refresh installation
+                  </Button>
+                </div>
+              </div>
             ) : !repos || repos.length === 0 ? (
-              <p className="text-[12px] text-[#6e6e6e]">
-                No repos visible to this App installation. Install the App on a
-                repository, then refresh.
-              </p>
+              <div className="space-y-2">
+                <p className="text-[12px] text-[#6e6e6e]">
+                  No repos visible to this App installation. Add repositories on
+                  GitHub, then refresh.
+                </p>
+                <a
+                  href={installHref}
+                  className="inline-flex h-8 items-center rounded-lg border border-white/[0.1] px-3 text-[12px] text-[#f2f2f2] hover:bg-white/[0.04]"
+                >
+                  Configure repos on GitHub
+                </a>
+              </div>
             ) : (
               <>
                 <label className="block space-y-1.5">

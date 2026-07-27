@@ -51,15 +51,46 @@ def exchange_code(code: str) -> str:
     return str(token)
 
 
+def _user_headers(access_token: str) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
 def fetch_github_user(access_token: str) -> dict[str, Any]:
     with httpx.Client(timeout=30.0) as client:
-        resp = client.get(
-            f"{API_URL}/user",
-            headers={
-                "Authorization": f"Bearer {access_token}",
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
-        )
+        resp = client.get(f"{API_URL}/user", headers=_user_headers(access_token))
         resp.raise_for_status()
         return resp.json()
+
+
+def list_user_installations(access_token: str) -> list[dict[str, Any]]:
+    """Installations the user can manage (`GET /user/installations`)."""
+    installations: list[dict[str, Any]] = []
+    page = 1
+    with httpx.Client(timeout=30.0, headers=_user_headers(access_token)) as client:
+        while True:
+            resp = client.get(
+                f"{API_URL}/user/installations",
+                params={"per_page": 100, "page": page},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            batch = data.get("installations") or []
+            installations.extend(batch)
+            total = int(data.get("total_count") or 0)
+            if len(installations) >= total or not batch:
+                break
+            page += 1
+    return installations
+
+
+def find_app_installation(access_token: str, app_id: str) -> dict[str, Any] | None:
+    """Return the installation of `app_id` for this user, if any."""
+    want = str(app_id)
+    for inst in list_user_installations(access_token):
+        if str(inst.get("app_id") or "") == want:
+            return inst
+    return None

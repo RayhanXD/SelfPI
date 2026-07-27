@@ -15,7 +15,7 @@ React + TypeScript + Tailwind. Design system: `frontend/design/`. Aesthetic: dus
 - `/app` — Dashboard
 - `/app/apis` — Watched APIs
 - `/app/changes` — Inbox
-- `/app/changes/:id` — Change detail
+- `/app/changes/:id` — Change detail (review cockpit)
 - `/app/changes/:id/explorer` — Call-site explorer
 - `/app/settings` — Account + connect repo
 
@@ -24,4 +24,4 @@ npm install
 npm run dev
 ```
 
-Vite proxies `/apis`, `/changes`, `/settings`, `/repos`, `/auth`, `/health` to `http://localhost:8000`.
+Opens **http://localhost:5173**. Vite proxies `/apis`, `/changes`, `/settings`, `/repos`, `/auth`, `/health` to `http://localhost:8000`.

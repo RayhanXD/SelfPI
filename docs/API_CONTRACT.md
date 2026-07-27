@@ -154,11 +154,18 @@ Public config for the Settings screen (no secrets).
   "connected_repo": "myorg/billing-app",
   "watch_interval_seconds": 300,
   "watch_enabled": true,
-  "hint": "Set GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, and GITHUB_APP_INSTALLATION_ID in backend/.env — see README."
+  "oauth_configured": true,
+  "login_required": true,
+  "authenticated": true,
+  "user": { "id": 1, "login": "octocat", "name": "Mono", "avatar_url": "…", "html_url": "…" },
+  "login_url": "/auth/github/login",
+  "app_installed": false,
+  "install_url": "https://github.com/apps/selfpi/installations/new",
+  "hint": "Install SelfPI on GitHub, then connect a repository."
 }
 ```
 
-`connected_repo` is the workspace binding from `POST /repos/connect` (or `null` if none). `watch_*` describe the background live-API poller. When OAuth is configured, `authenticated` / `user` / `login_url` reflect the signed-in GitHub identity.
+`github_configured` is true when the server has `GITHUB_APP_ID` + private key. `app_installed` is true when an installation id is known (session, connected workspace, or optional `GITHUB_APP_INSTALLATION_ID` env fallback). `connected_repo` is the workspace binding from `POST /repos/connect` (or `null`). `watch_*` describe the background live-API poller.
 
 ---
 
@@ -166,11 +173,26 @@ Public config for the Settings screen (no secrets).
 
 GitHub App **user-to-server OAuth**. Requires `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and a Callback URL on the App matching `GITHUB_OAUTH_REDIRECT_URI`.
 
+For public onboarding set the App **Setup URL** to `{API}/auth/github/installed` so Install App returns with `installation_id`.
+
 ### `GET /auth/github/login`
 Redirects the browser to GitHub’s authorize URL. Sets a short-lived `selfpi_oauth_state` cookie.
 
 ### `GET /auth/github/callback`
-Exchanges `code` for a user token, loads `/user`, sets httponly `selfpi_session` cookie, redirects to `{FRONTEND_URL}/settings?auth=ok` (or `auth=error`).
+Exchanges `code` for a user token, loads `/user`, discovers this App’s installation via `GET /user/installations`, sets httponly `selfpi_session` cookie, redirects to `{FRONTEND_URL}/auth/callback?auth=ok` (or `auth=error`).
+
+### `GET /auth/github/install`
+Redirects to `https://github.com/apps/{slug}/installations/new` (slug from `GITHUB_APP_SLUG` or `GET /app`).
+
+### `GET /auth/github/installed`
+GitHub Setup URL target after Install / Update (`?installation_id=&setup_action=`). Stores `installation_id` on the session and redirects to `{FRONTEND_URL}/settings?installed=1`.
+
+### `POST /auth/github/sync-installation`
+Re-runs installation discovery for the signed-in user and refreshes the session cookie.
+
+```json
+{ "app_installed": true, "install_url": "https://github.com/apps/selfpi/installations/new", "installation_id": "149236841" }
+```
 
 ### `GET /auth/me`
 ```json
@@ -179,7 +201,9 @@ Exchanges `code` for a user token, loads `/user`, sets httponly `selfpi_session`
   "oauth_configured": true,
   "login_required": true,
   "user": { "id": 1, "login": "octocat", "name": "Mono", "avatar_url": "…", "html_url": "…" },
-  "login_url": "/auth/github/login"
+  "login_url": "/auth/github/login",
+  "app_installed": true,
+  "install_url": "https://github.com/apps/selfpi/installations/new"
 }
 ```
 
@@ -192,7 +216,7 @@ When `AUTH_REQUIRED=true` and OAuth is configured, `/repos/*` returns `401 login
 
 ## Connected repo (GitHub App)
 
-Lists repos via the **installation token**. Connecting a repo requires Login with GitHub when OAuth is configured.
+Lists repos via the **installation token** for the user’s installation (session → connected workspace → optional env fallback). Connecting a repo requires Login with GitHub when OAuth is configured.
 
 ### `GET /repos`
 List repositories accessible to the configured App installation.
@@ -296,5 +320,5 @@ pr.state:      open | merged | closed
 
 - `call_sites` are embedded in the change document (Mongo), so `GET /changes/{id}` needs no join.
 - The confidence→color mapping and layer badges are a frontend concern (see FRONTEND_GUIDELINES §2).
-- Auth in v1 is minimal (single user): GitHub App installation credentials in env; connect-repo lists installation-accessible repos. User OAuth is a follow-up for strangers installing the App.
+- Auth in v1: Login with GitHub + Install App onboarding. Server keeps App credentials (`GITHUB_APP_ID` / private key / OAuth client). Strangers install the App from Settings; `installation_id` lives on the session and connected-repo document. Optional `GITHUB_APP_INSTALLATION_ID` is a single-tenant / local-demo fallback only.
 - The scheduled watcher polls only `mode: "live"` APIs with a `spec_url` (never demo bumps). Interval: `WATCH_INTERVAL_SECONDS` (default 300). Disable with `WATCH_ENABLED=false`.

@@ -1,4 +1,4 @@
-"""GitHub OAuth — Login with GitHub."""
+"""GitHub OAuth — Login with GitHub + Install App callback."""
 
 from __future__ import annotations
 
@@ -9,6 +9,12 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
+from api.auth.installation import (
+    install_url,
+    installation_status,
+    resolve_installation_id,
+    sync_installation_id,
+)
 from api.auth.oauth import authorize_url, exchange_code, fetch_github_user
 from api.auth.session import (
     clear_session_cookie,
@@ -16,7 +22,7 @@ from api.auth.session import (
     session_user_public,
     set_session_cookie,
 )
-from api.models import AuthUser, MeResponse
+from api.models import AuthUser, InstallationSyncResponse, MeResponse
 from db.settings import get_settings
 
 logger = logging.getLogger("selfpi.auth")
@@ -87,22 +93,142 @@ def github_callback(
         "html_url": gh_user.get("html_url"),
         "access_token": token,
     }
+    try:
+        sync_installation_id(session)
+    except Exception as exc:
+        logger.warning("installation sync on login failed: %s", exc)
+
     response = RedirectResponse(f"{frontend}/auth/callback?auth=ok", status_code=302)
     set_session_cookie(response, session)
     response.delete_cookie("selfpi_oauth_state", path="/")
     return response
 
 
+@router.get("/github/install")
+def github_install(request: Request) -> RedirectResponse:
+    """Redirect to GitHub's Install App page (requires App credentials)."""
+    s = get_settings()
+    frontend = s.frontend_url.rstrip("/")
+    url = install_url()
+    if not url:
+        return RedirectResponse(
+            f"{frontend}/settings?install=error&reason=install_url_unavailable",
+            status_code=302,
+        )
+    # Prefer logged-in users; still allow anonymous click-through to GitHub.
+    _ = read_session(request)
+    return RedirectResponse(url, status_code=302)
+
+
+@router.get("/github/installed")
+def github_installed(
+    request: Request,
+    installation_id: str | None = None,
+    setup_action: str | None = None,
+) -> RedirectResponse:
+    """GitHub App Setup URL target after Install / Update.
+
+    Configure on the App: Setup URL → `{API}/auth/github/installed`
+    GitHub appends `?installation_id=…&setup_action=install|update`.
+    """
+    s = get_settings()
+    frontend = s.frontend_url.rstrip("/")
+    session = read_session(request)
+
+    if not session:
+        # Bounce through login, then land on settings.
+        return RedirectResponse(
+            f"{frontend}/login?next=/settings&reason=install_needs_login",
+            status_code=302,
+        )
+
+    if installation_id:
+        sync_installation_id(session, installation_id=installation_id)
+    else:
+        try:
+            sync_installation_id(session)
+        except Exception as exc:
+            logger.warning("post-install sync failed: %s", exc)
+
+    params = {"installed": "1"}
+    if setup_action:
+        params["setup_action"] = setup_action
+    if not resolve_installation_id(session):
+        params = {"installed": "0", "reason": "no_installation"}
+
+    response = RedirectResponse(
+        f"{frontend}/settings?{urlencode(params)}",
+        status_code=302,
+    )
+    set_session_cookie(response, session)
+    return response
+
+
+@router.post("/github/sync-installation", response_model=InstallationSyncResponse)
+def sync_installation(request: Request) -> JSONResponse:
+    """Re-discover this user's App installation and refresh the session cookie."""
+    s = get_settings()
+    session = read_session(request)
+    if not session or not session_user_public(session):
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error": {
+                    "code": "login_required",
+                    "message": "Log in with GitHub first.",
+                }
+            },
+        )
+    if not s.github_app_credentials_ready:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": {
+                    "code": "github_not_configured",
+                    "message": "GitHub App credentials are not configured on the server.",
+                }
+            },
+        )
+
+    try:
+        sync_installation_id(session)
+    except Exception as exc:
+        logger.exception("sync-installation failed: %s", exc)
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": {
+                    "code": "github_sync_failed",
+                    "message": str(exc),
+                }
+            },
+        )
+
+    status = installation_status(session)
+    body = InstallationSyncResponse(
+        app_installed=bool(status["app_installed"]),
+        install_url=status.get("install_url"),
+        installation_id=status.get("installation_id"),
+    )
+    response = JSONResponse(body.model_dump())
+    set_session_cookie(response, session)
+    return response
+
+
 @router.get("/me", response_model=MeResponse)
 def me(request: Request) -> MeResponse:
     s = get_settings()
-    user = session_user_public(read_session(request))
+    session = read_session(request)
+    user = session_user_public(session)
+    status = installation_status(session)
     return MeResponse(
         authenticated=bool(user),
         oauth_configured=s.oauth_ready,
         login_required=s.login_required,
         user=AuthUser(**user) if user else None,
         login_url="/auth/github/login" if s.oauth_ready else None,
+        app_installed=bool(status["app_installed"]),
+        install_url=status.get("install_url"),
     )
 
 

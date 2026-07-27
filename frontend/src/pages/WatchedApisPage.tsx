@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/Button";
-import { EmptyState, ErrorState, SkeletonRows } from "../components/EmptyState";
+import { EmptyState, ErrorState, Flash, SkeletonRows } from "../components/EmptyState";
 import { StatusPill } from "../components/StatusPill";
 import { api } from "../lib/api";
 import { DEMO_BUMP_SPEC } from "../lib/demo";
@@ -57,7 +57,7 @@ export function WatchedApisPage() {
         navigate(`/app/changes?api_id=${id}`);
       } else {
         setNotice(
-          "Bump stored, but no new diff (demo already has payment_method). Open Changes, or run make reset then bump once.",
+          "Bump stored, but no new diff. Open Changes, or run make reset then bump once.",
         );
         navigate(`/app/changes?api_id=${id}`);
       }
@@ -68,90 +68,107 @@ export function WatchedApisPage() {
     }
   };
 
-  if (error || actionError) {
-    return <ErrorState message={error ?? actionError!} />;
-  }
+  if (error) return <ErrorState message={error} />;
   if (loading || !apis) return <SkeletonRows />;
-  if (apis.length === 0) return <EmptyState message="No APIs watched yet." />;
+  if (apis.length === 0) {
+    return (
+      <div className="rounded-2xl border border-white/[0.07] px-5 py-10">
+        <EmptyState
+          message="No APIs watched yet."
+          hint="Connect a repository in Settings to detect APIs."
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-text-muted">
-        <span className="font-mono">Bump spec</span> is demo-only (
-        <span className="font-mono">source → payment_method</span>).{" "}
-        <span className="font-mono">Check now</span> polls the live Stripe OpenAPI.
-        After the first successful bump, run <span className="font-mono">make reset</span> to
-        bump again.
+    <div className="space-y-4">
+      <p className="text-[12px] leading-relaxed text-[#6e6e6e]">
+        <span className="font-mono text-[#8a8a8a]">Bump spec</span> is demo-only
+        (source → payment_method).{" "}
+        <span className="font-mono text-[#8a8a8a]">Check now</span> polls the live
+        OpenAPI. After the first successful bump, run{" "}
+        <span className="font-mono text-[#8a8a8a]">make reset</span> to bump again.
       </p>
-      {notice ? (
-        <p className="rounded-md border border-border bg-surface-1 px-3 py-2 text-xs text-text-secondary">
-          {notice}
-        </p>
-      ) : null}
-      <div className="overflow-hidden rounded-md border border-border">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead className="sticky top-0 bg-surface-2">
-            <tr className="border-b border-border text-xs uppercase tracking-wide text-text-muted">
-              <th className="px-3 py-2 font-medium">API</th>
-              <th className="px-3 py-2 font-medium">Version</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Last checked</th>
-              <th className="px-3 py-2 font-medium">Open changes</th>
-              <th className="px-3 py-2 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {apis.map((a) => (
-              <tr
-                key={a.id}
-                className="border-b border-border last:border-0 hover:bg-surface-2"
-              >
-                <td className="px-3 py-2">
-                  <Link
-                    to={`/app/changes?api_id=${a.id}`}
-                    className="text-text-primary hover:text-accent"
-                  >
-                    {a.name}
-                  </Link>
-                  <div className="font-mono text-xs text-text-muted">{a.id}</div>
-                </td>
-                <td className="px-3 py-2 font-mono text-text-secondary">
-                  {a.current_version ?? "—"}
-                </td>
-                <td className="px-3 py-2">
-                  <StatusPill label={apiStatusLabel(a.status)} tone={apiStatusTone(a.status)} />
-                </td>
-                <td className="px-3 py-2 font-mono text-xs text-text-muted">
-                  {a.last_checked ?? "—"}
-                </td>
-                <td className="px-3 py-2 tabular-nums text-text-secondary">
-                  {a.open_change_count}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex justify-end gap-2">
-                    {isLiveApi(a) ? (
-                      <Button
-                        onClick={() => onCheck(a.id)}
-                        disabled={busy === `check:${a.id}`}
-                      >
-                        {busy === `check:${a.id}` ? "Checking…" : "Check now"}
-                      </Button>
-                    ) : null}
-                    {isDemoApi(a) ? (
-                      <Button
-                        variant="primary"
-                        onClick={() => onBump(a.id)}
-                        disabled={busy === `bump:${a.id}`}
-                      >
-                        {busy === `bump:${a.id}` ? "Bumping…" : "Bump spec"}
-                      </Button>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {notice ? <Flash tone="info">{notice}</Flash> : null}
+      {actionError ? <Flash tone="danger">{actionError}</Flash> : null}
+
+      <div className="overflow-hidden rounded-2xl border border-white/[0.07]">
+        {apis.map((a, idx) => (
+          <div
+            key={a.id}
+            className={[
+              "group flex flex-wrap items-center gap-4 px-5 py-4 transition-colors duration-150 ease-out hover:bg-white/[0.025]",
+              idx > 0 ? "border-t border-white/[0.06]" : "",
+            ].join(" ")}
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Link
+                  to={`/app/changes?api_id=${a.id}`}
+                  className="text-[15px] font-semibold tracking-[-0.03em] text-white transition-opacity hover:opacity-80"
+                >
+                  {a.name}
+                </Link>
+                <StatusPill
+                  label={apiStatusLabel(a.status)}
+                  tone={apiStatusTone(a.status)}
+                />
+                {isDemoApi(a) ? (
+                  <span className="rounded-md border border-white/[0.08] px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.08em] text-[#5c5c5c]">
+                    Demo
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 font-mono text-[11px] tracking-normal text-[#5c5c5c]">
+                <span>{a.id}</span>
+                <span className="text-[#3a3a3a]">·</span>
+                <span>{a.current_version ?? "—"}</span>
+                <span className="text-[#3a3a3a]">·</span>
+                <span className="font-sans tracking-[-0.01em] text-[#8a8a8a]">
+                  {a.open_change_count} open change
+                  {a.open_change_count === 1 ? "" : "s"}
+                </span>
+                {a.last_checked ? (
+                  <>
+                    <span className="text-[#3a3a3a]">·</span>
+                    <span className="font-sans text-[#5c5c5c]">
+                      checked {a.last_checked.slice(0, 16).replace("T", " ")}
+                    </span>
+                  </>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {a.open_change_count > 0 ? (
+                <Link
+                  to={`/app/changes?api_id=${a.id}`}
+                  className="inline-flex h-8 items-center rounded-lg px-2.5 text-[12px] font-medium text-[#8a8a8a] transition-colors hover:bg-white/[0.04] hover:text-white"
+                >
+                  View inbox
+                </Link>
+              ) : null}
+              {isDemoApi(a) ? (
+                <Button
+                  variant="primary"
+                  disabled={busy === `bump:${a.id}`}
+                  onClick={() => void onBump(a.id)}
+                >
+                  {busy === `bump:${a.id}` ? "Bumping…" : "Simulate change"}
+                </Button>
+              ) : null}
+              {isLiveApi(a) ? (
+                <Button
+                  variant="secondary"
+                  disabled={busy === `check:${a.id}`}
+                  onClick={() => void onCheck(a.id)}
+                >
+                  {busy === `check:${a.id}` ? "Checking…" : "Check now"}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -31,6 +31,7 @@ def connect_repo(
     html_url: str | None = None,
     private: bool | None = None,
     repo_path: str | None = None,
+    installation_id: str | None = None,
     propagate_to_apis: bool = True,
 ) -> dict[str, Any]:
     """Persist the connected repo and optionally stamp it onto watched APIs."""
@@ -44,6 +45,7 @@ def connect_repo(
         raise ValueError("full_name must be owner/name")
 
     existing = get_connected_repo()
+    resolved_installation = installation_id or (existing or {}).get("installation_id")
     doc: dict[str, Any] = {
         "_id": CONNECTED_ID,
         "full_name": f"{owner}/{name}",
@@ -55,6 +57,8 @@ def connect_repo(
         "repo_path": repo_path if repo_path is not None else (existing or {}).get("repo_path"),
         "connected_at": _now(),
     }
+    if resolved_installation:
+        doc["installation_id"] = str(resolved_installation)
     repos().replace_one({"_id": CONNECTED_ID}, doc, upsert=True)
 
     if propagate_to_apis:

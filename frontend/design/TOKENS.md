@@ -1,6 +1,6 @@
 # Tokens
 
-Canonical values. Implement as CSS variables (Tailwind `@theme` or equivalent). Keep `frontend-lab/src/index.css` and `frontend-lab/src/lib/accents.ts` in sync when these change.
+Canonical values. Implement as CSS variables (Tailwind `@theme` or equivalent). Keep `frontend/src/index.css` and `frontend/src/lib/accents.ts` in sync when these change.
 
 ## Surfaces (black / white quiet)
 
@@ -55,7 +55,7 @@ Always show the numeric value in mono next to any confidence bar. Never color al
 **Not** a candy rainbow. **Dusk horizon** — muted horizontal band. Brand only.
 
 ```ts
-// frontend-lab/src/lib/accents.ts (canonical JS strings)
+// frontend/src/lib/accents.ts (canonical JS strings)
 
 export const HORIZON =
   "linear-gradient(90deg, #e8a07a 0%, #efc28a 20%, #d989a5 45%, #9a8fc0 70%, #7aa3c4 100%)";
@@ -71,7 +71,7 @@ export const HORIZON_GLOW =
 
 ### Where horizon is allowed
 
-- Brand mark (small square chip)
+- Brand mark (`BrandMark` — box + looping arrows)
 - Active nav / tab / row **underline** (horizontal, ~1.5–2px)
 - Optional faint atmospheric wash at top of main pane (opacity ≤ ~0.07)
 

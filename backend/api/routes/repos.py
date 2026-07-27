@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from api.auth.deps import require_login
+from api.auth.installation import resolve_installation_id, sync_installation_id
+from api.auth.session import read_session, set_session_cookie
 from api.models import (
     ConnectRepoRequest,
     ConnectedRepo,
@@ -16,8 +18,63 @@ from db.repos import connect_repo, connected_summary, disconnect_repo, get_conne
 from db.settings import get_settings
 from detector import detect_and_ensure
 from patcher.github import GitHubAppClient
+from starlette.responses import JSONResponse, Response
 
 router = APIRouter(prefix="/repos", tags=["repos"])
+
+
+def _client_for_request(request: Request) -> tuple[GitHubAppClient, dict | None]:
+    """Build a GitHubAppClient using session / connected / env installation id.
+
+    May mutate the session when discovering an installation via the user token.
+    Returns (client, updated_session_or_None).
+    """
+    s = get_settings()
+    if not s.github_app_credentials_ready:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "github_not_configured",
+                    "message": (
+                        "GitHub App not configured. Set GITHUB_APP_ID and "
+                        "GITHUB_APP_PRIVATE_KEY."
+                    ),
+                }
+            },
+        )
+
+    session = read_session(request)
+    updated = session
+    iid = resolve_installation_id(session)
+    if not iid and session and session.get("access_token"):
+        try:
+            sync_installation_id(session)
+            iid = resolve_installation_id(session)
+            updated = session
+        except Exception:
+            pass
+
+    if not iid:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "app_not_installed",
+                    "message": (
+                        "SelfPI is not installed on any of your GitHub accounts yet. "
+                        "Open Settings → Install SelfPI on GitHub, then try again."
+                    ),
+                }
+            },
+        )
+
+    return GitHubAppClient(installation_id=iid), updated
+
+
+def _maybe_refresh_session(response: Response, session: dict | None) -> None:
+    if session is not None:
+        set_session_cookie(response, session)
 
 
 @router.get("/connected", response_model=ConnectedRepo | None)
@@ -29,23 +86,11 @@ def get_connected(_user: dict = Depends(require_login)) -> ConnectedRepo | None:
 
 
 @router.get("", response_model=ListInstallationReposResponse)
-def list_accessible_repos(_user: dict = Depends(require_login)) -> ListInstallationReposResponse:
+def list_accessible_repos(
+    request: Request, _user: dict = Depends(require_login)
+) -> Response:
     """Repos the GitHub App installation can access (installation token)."""
-    s = get_settings()
-    if not s.github_ready:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": {
-                    "code": "github_not_configured",
-                    "message": (
-                        "GitHub App not configured. Set GITHUB_APP_ID, "
-                        "GITHUB_APP_PRIVATE_KEY, and GITHUB_APP_INSTALLATION_ID."
-                    ),
-                }
-            },
-        )
-    client = GitHubAppClient()
+    client, session = _client_for_request(request)
     try:
         raw = client.list_installation_repos()
     except Exception as exc:
@@ -68,19 +113,29 @@ def list_accessible_repos(_user: dict = Depends(require_login)) -> ListInstallat
         )
         for r in raw
     ]
-    return ListInstallationReposResponse(items=items, connected_repo=connected_name)
+    body = ListInstallationReposResponse(items=items, connected_repo=connected_name)
+    response = JSONResponse(body.model_dump())
+    _maybe_refresh_session(response, session)
+    return response
 
 
 @router.post("/connect", response_model=ConnectedRepo)
-def connect(body: ConnectRepoRequest, _user: dict = Depends(require_login)) -> ConnectedRepo:
+def connect(
+    body: ConnectRepoRequest,
+    request: Request,
+    _user: dict = Depends(require_login),
+) -> Response:
     """Persist the connected repo and stamp it onto watched APIs."""
     s = get_settings()
     full_name = body.full_name.strip()
     meta: dict = {}
+    session: dict | None = None
+    installation_id = resolve_installation_id(read_session(request))
 
-    if s.github_ready:
+    if s.github_app_credentials_ready:
+        client, session = _client_for_request(request)
+        installation_id = client.installation_id
         try:
-            client = GitHubAppClient()
             for item in client.list_installation_repos():
                 if item["full_name"] == full_name:
                     meta = item
@@ -114,6 +169,7 @@ def connect(body: ConnectRepoRequest, _user: dict = Depends(require_login)) -> C
             html_url=meta.get("html_url"),
             private=meta.get("private"),
             repo_path=body.repo_path if body.repo_path is not None else s.repo_path,
+            installation_id=str(installation_id) if installation_id else None,
             propagate_to_apis=True,
         )
     except ValueError as exc:
@@ -129,7 +185,9 @@ def connect(body: ConnectRepoRequest, _user: dict = Depends(require_login)) -> C
     )
     summary = connected_summary(doc) or {}
     summary["detected_apis"] = detection["detected_apis"]
-    return ConnectedRepo(**summary)
+    response = JSONResponse(ConnectedRepo(**summary).model_dump())
+    _maybe_refresh_session(response, session)
+    return response
 
 
 @router.post("/connected/detect", response_model=DetectApisResponse)

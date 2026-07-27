@@ -88,7 +88,7 @@ def generate_and_open_pr(
             "body": body,
         }
 
-    client = github or GitHubAppClient()
+    client = github or _github_client_for_repo(repo)
     if not client.configured:
         # Local fallback when App isn't configured
         apply_edits(repo_path, edits)
@@ -186,6 +186,16 @@ def _template_body(
         ]
     )
     return "\n".join(lines)
+
+
+def _github_client_for_repo(repo: str) -> GitHubAppClient:
+    """Prefer the connected workspace installation id, else env fallback."""
+    from db.repos import get_connected_repo
+
+    connected = get_connected_repo()
+    if connected and connected.get("installation_id"):
+        return GitHubAppClient(installation_id=str(connected["installation_id"]))
+    return GitHubAppClient()
 
 
 def _now() -> str:

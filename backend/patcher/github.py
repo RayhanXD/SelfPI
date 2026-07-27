@@ -41,8 +41,26 @@ class GitHubAppClient:
         self._token_expires_at = 0.0
 
     @property
+    def credentials_ready(self) -> bool:
+        """App ID + private key present (enough for JWT /app calls)."""
+        return bool(self.app_id and self.private_key)
+
+    @property
     def configured(self) -> bool:
-        return bool(self.app_id and self.private_key and self.installation_id)
+        """Credentials + installation id — enough to mint installation tokens."""
+        return bool(self.credentials_ready and self.installation_id)
+
+    def get_app_info(self) -> dict[str, Any]:
+        """`GET /app` — returns slug, name, etc. (App JWT)."""
+        if not self.credentials_ready:
+            raise RuntimeError(
+                "GitHub App not configured (GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY)"
+            )
+        headers = self._auth_headers(self._app_jwt())
+        with httpx.Client(timeout=30.0, headers=headers) as client:
+            resp = client.get(f"{self.api_url}/app")
+            resp.raise_for_status()
+            return resp.json()
 
     def list_installation_repos(self) -> list[dict[str, Any]]:
         """List repositories the GitHub App installation can access.
@@ -54,7 +72,7 @@ class GitHubAppClient:
         if not self.configured:
             raise RuntimeError(
                 "GitHub App not configured "
-                "(GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / GITHUB_APP_INSTALLATION_ID)"
+                "(GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / installation id)"
             )
 
         headers = self._auth_headers(self._installation_token())
@@ -113,7 +131,7 @@ class GitHubAppClient:
         if not self.configured:
             raise RuntimeError(
                 "GitHub App not configured "
-                "(GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / GITHUB_APP_INSTALLATION_ID)"
+                "(GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / installation id)"
             )
 
         owner, name = repo.split("/", 1)
@@ -237,17 +255,13 @@ class GitHubAppClient:
             "X-GitHub-Api-Version": "2022-11-28",
         }
 
-    def _installation_token(self) -> str:
-        now = time.time()
-        if self._token and now < self._token_expires_at - 60:
-            return self._token
-
+    def _app_jwt(self) -> str:
         if jwt is None:
             raise RuntimeError(
                 "PyJWT is required for GitHub App auth — pip install PyJWT cryptography"
             )
-
-        app_jwt = jwt.encode(
+        now = time.time()
+        return jwt.encode(
             {
                 "iat": int(now) - 60,
                 "exp": int(now) + 9 * 60,
@@ -256,11 +270,16 @@ class GitHubAppClient:
             self.private_key.replace("\\n", "\n"),
             algorithm="RS256",
         )
-        headers = {
-            "Authorization": f"Bearer {app_jwt}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        }
+
+    def _installation_token(self) -> str:
+        now = time.time()
+        if self._token and now < self._token_expires_at - 60:
+            return self._token
+
+        if not self.installation_id:
+            raise RuntimeError("GitHub App installation id is required")
+
+        headers = self._auth_headers(self._app_jwt())
         with httpx.Client(timeout=30.0, headers=headers) as client:
             resp = client.post(
                 f"{self.api_url}/app/installations/{self.installation_id}/access_tokens"

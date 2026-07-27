@@ -6,6 +6,7 @@ import type {
   ConnectedRepo,
   DetectApisResponse,
   ListInstallationReposResponse,
+  InstallationSyncResponse,
   MeResponse,
   SettingsResponse,
 } from "../types/api";
@@ -40,6 +41,10 @@ export const api = {
   getSettings: () => request<SettingsResponse>("/settings"),
   getMe: () => request<MeResponse>("/auth/me"),
   logout: () => request<{ logged_out: boolean }>("/auth/logout", { method: "POST" }),
+  syncInstallation: () =>
+    request<InstallationSyncResponse>("/auth/github/sync-installation", {
+      method: "POST",
+    }),
   listRepos: () => request<ListInstallationReposResponse>("/repos"),
   getConnectedRepo: () => request<ConnectedRepo | null>("/repos/connected"),
   connectRepo: (full_name: string, repo_path?: string | null) =>

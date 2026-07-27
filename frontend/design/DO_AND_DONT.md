@@ -7,8 +7,8 @@
 - Pair every status/confidence color with a **label or number**
 - Prefer list shells for triage; tables for multi-column explorers
 - Keep primary CTA as **white button**
-- Match `frontend-lab` when unsure — then update these docs if you intentionally diverge
-- Update **TOKENS.md** + lab accents in the same PR when changing the horizon
+- Match `frontend/src` when unsure — then update these docs if you intentionally diverge
+- Update **TOKENS.md** + `frontend/src/lib/accents.ts` in the same PR when changing the horizon
 
 ## Don’t
 

@@ -11,6 +11,7 @@ def _disable_github_app_in_tests(monkeypatch):
     monkeypatch.setenv("GITHUB_APP_ID", "")
     monkeypatch.setenv("GITHUB_APP_PRIVATE_KEY", "")
     monkeypatch.setenv("GITHUB_APP_INSTALLATION_ID", "")
+    monkeypatch.setenv("GITHUB_APP_SLUG", "")
     monkeypatch.setenv("GITHUB_DEFAULT_BASE_BRANCH", "")
     monkeypatch.setenv("GITHUB_CLIENT_ID", "")
     monkeypatch.setenv("GITHUB_CLIENT_SECRET", "")
@@ -26,9 +27,13 @@ def _disable_github_app_in_tests(monkeypatch):
     monkeypatch.setattr("db.settings.github_ready", lambda: False)
     monkeypatch.setattr("db.settings.pr_pipeline_flags", lambda: (False, True))
 
-    # Settings.github_ready is a property used by GET /settings
+    # Properties used by GET /settings — keep false unless a test overrides env.
     monkeypatch.setattr(
         "db.settings.Settings.github_ready",
+        property(lambda self: False),
+    )
+    monkeypatch.setattr(
+        "db.settings.Settings.github_app_credentials_ready",
         property(lambda self: False),
     )
     get_settings.cache_clear()

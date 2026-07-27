@@ -9,7 +9,6 @@ import {
 } from "../components/DashboardChrome";
 import { EmptyState, ErrorState, SkeletonRows } from "../components/EmptyState";
 import { StatusPill } from "../components/StatusPill";
-import { HORIZON, HORIZON_GLOW } from "../lib/accents";
 import { api } from "../lib/api";
 import {
   apiStatusLabel,
@@ -320,24 +319,28 @@ export function DashboardPage() {
           </Panel>
         ) : (
           <Panel>
-            {stats.recent.map((c, idx) => (
+            {stats.recent.map((c, idx) => {
+              const tone = changeStatusTone(c.status as ChangeStatus);
+              const dot =
+                tone === "ok"
+                  ? "bg-ok"
+                  : tone === "warn"
+                    ? "bg-warn"
+                    : tone === "danger"
+                      ? "bg-danger"
+                      : tone === "info"
+                        ? "bg-info"
+                        : "bg-[#444]";
+              return (
               <Link
                 key={c.id}
                 to={`/app/changes/${c.id}`}
                 className={[
-                  "group relative flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.025]",
+                  "flex items-center gap-4 px-5 py-3.5 transition-colors duration-150 hover:bg-white/[0.025]",
                   idx > 0 ? "border-t border-white/[0.06]" : "",
                 ].join(" ")}
               >
-                <div
-                  className="size-1.5 shrink-0 rounded-full"
-                  style={
-                    c.status === "detected" || c.status === "pr_open"
-                      ? { backgroundImage: HORIZON, boxShadow: HORIZON_GLOW }
-                      : undefined
-                  }
-                  aria-hidden
-                />
+                <div className={`size-1.5 shrink-0 rounded-full ${dot}`} aria-hidden />
                 <div className="min-w-0 flex-1">
                   <div className="font-mono text-[13px] tracking-normal text-white">
                     {c.operation_id}
@@ -348,13 +351,14 @@ export function DashboardPage() {
                 </div>
                 <StatusPill
                   label={changeStatusLabel(c.status as ChangeStatus)}
-                  tone={changeStatusTone(c.status as ChangeStatus)}
+                  tone={tone}
                 />
                 <time className="hidden shrink-0 font-mono text-[11px] tracking-normal text-[#5c5c5c] sm:block">
                   {c.detected_at?.slice(0, 10) ?? "—"}
                 </time>
               </Link>
-            ))}
+            );
+            })}
           </Panel>
         )}
       </div>

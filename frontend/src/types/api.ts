@@ -49,6 +49,10 @@ export interface SettingsResponse {
   authenticated?: boolean;
   user?: AuthUser | null;
   login_url?: string | null;
+  /** True when this user (or env fallback) has an App installation id */
+  app_installed?: boolean;
+  /** https://github.com/apps/{slug}/installations/new */
+  install_url?: string | null;
 }
 
 export interface AuthUser {
@@ -65,6 +69,14 @@ export interface MeResponse {
   login_required: boolean;
   user: AuthUser | null;
   login_url?: string | null;
+  app_installed?: boolean;
+  install_url?: string | null;
+}
+
+export interface InstallationSyncResponse {
+  app_installed: boolean;
+  install_url?: string | null;
+  installation_id?: string | null;
 }
 
 export interface ConnectedRepo {

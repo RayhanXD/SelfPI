@@ -104,6 +104,10 @@ def test_list_repos_with_fake_github(monkeypatch):
     monkeypatch.setenv("GITHUB_APP_INSTALLATION_ID", "2")
     get_settings.cache_clear()
     monkeypatch.setattr(
+        "db.settings.Settings.github_app_credentials_ready",
+        property(lambda self: bool(self.github_app_id and self.github_app_private_key)),
+    )
+    monkeypatch.setattr(
         "db.settings.Settings.github_ready",
         property(lambda self: True),
     )
@@ -111,6 +115,9 @@ def test_list_repos_with_fake_github(monkeypatch):
 
     class FakeClient:
         configured = True
+
+        def __init__(self, *args, **kwargs):
+            self.installation_id = kwargs.get("installation_id") or "2"
 
         def list_installation_repos(self):
             return [

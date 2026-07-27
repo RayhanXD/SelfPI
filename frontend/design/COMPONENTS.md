@@ -1,6 +1,6 @@
 # Components
 
-How to build recurring UI so the platform stays consistent. Reference implementations live in `frontend-lab/src/components/` and pages.
+How to build recurring UI so the platform stays consistent. Reference implementations live in `frontend/src/components/` and pages.
 
 ## Horizon underline (active state)
 
@@ -22,7 +22,15 @@ Keep a shared `accents.ts` (or CSS variables mirroring [TOKENS.md](./TOKENS.md))
 
 ## Brand mark
 
-Small square (~18–20px), `rounded-md`, fill = `HORIZON_SOFT`, optional light ring + `HORIZON_GLOW`. Sits next to the wordmark “SelfPI”.
+`BrandMark` — rounded **box** with two arrows looping out and back in, stroked in the dusk **horizon** gradient. Means self-maintaining: change leaves the system and returns as a fix.
+
+```tsx
+import { BrandMark } from "../components/BrandMark";
+
+<BrandMark size={20} />
+```
+
+Also shipped as `public/favicon.svg`. Do not replace with a plain filled square or indigo glyph.
 
 ## Buttons
 

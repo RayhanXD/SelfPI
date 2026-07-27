@@ -67,9 +67,11 @@ Without these env vars, the pipeline detects call sites but does **not** open a 
 
 ```bash
 GITHUB_APP_ID=123456
-GITHUB_APP_INSTALLATION_ID=12345678
 GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
-# Optional — leave empty to use each repo's GitHub default branch (main/master/…)
+# Optional local-demo fallback only — leave empty for public Install App onboarding
+# GITHUB_APP_INSTALLATION_ID=
+# Optional; otherwise fetched from GET /app
+# GITHUB_APP_SLUG=selfpi
 GITHUB_DEFAULT_BASE_BRANCH=
 
 # Login with GitHub (production)
@@ -85,24 +87,27 @@ PEM newlines can be literal multiline or escaped `\n`.
 
 On the GitHub App settings page also set:
 - **Callback URL:** `http://localhost:8000/auth/github/callback` (must match `GITHUB_OAUTH_REDIRECT_URI`)
+- **Setup URL:** `http://localhost:8000/auth/github/installed` (Install App returns here with `installation_id`)
 - Generate a **Client secret** (Client ID is shown on the App’s General page)
+- Make the App **public** if strangers should install it
 
-4. Point the watched API’s `repo` field at `owner/name` via Settings → Connect (after login). Optionally set `REPO_PATH` to a local checkout for scanning.
+4. Point the watched API’s `repo` field at `owner/name` via Settings → Connect (after login + install). Optionally set `REPO_PATH` to a local checkout for scanning.
 
 5. Restart the API, run `make reset`, **Bump spec** on the demo API, open the change, click **Open PR** (or rely on auto-open when the App is configured).
 
-### Login with GitHub + Connect repo
+### Login → Install → Connect
 
 1. Open **Settings**
-2. Click **Login with GitHub** (requires `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`)
-3. After redirect back, pick a repo the App can access → **Connect repo**
-4. SelfPI **auto-detects APIs** from the local checkout (`repo_path` / `REPO_PATH` / `demo-consumer`). v1: **Python + Stripe** only — when Stripe is found, a live watched `stripe` API is ensured so the scheduler can poll it. Settings shows what was detected; use **Detect APIs** to re-run.
+2. **Login with GitHub**
+3. **Install SelfPI on GitHub** → pick repos → GitHub redirects back (`/auth/github/installed`)
+4. Pick a repo → **Connect repo**
+5. SelfPI **auto-detects APIs** from the local checkout (`repo_path` / `REPO_PATH` / `demo-consumer`). v1: **Python + Stripe** only — when Stripe is found, a live watched `stripe` API is ensured so the scheduler can poll it.
 
 Try it: bootstrap `demo-consumer/` (`python3 scripts/bootstrap_demo_consumer.py`), connect that GitHub repo (or any connect with `REPO_PATH` / `demo-consumer` present) → response includes `detected_apis: ["stripe"]`.
 
-Endpoints: `GET /auth/github/login`, `GET /auth/github/callback`, `GET /auth/me`, `POST /auth/logout`, plus `/repos/*` including `POST /repos/connected/detect` (see `docs/API_CONTRACT.md`).
+Endpoints: `GET /auth/github/login`, `GET /auth/github/callback`, `GET /auth/github/install`, `GET /auth/github/installed`, `POST /auth/github/sync-installation`, `GET /auth/me`, `POST /auth/logout`, plus `/repos/*` including `POST /repos/connected/detect` (see `docs/API_CONTRACT.md`).
 
-When OAuth is configured and `AUTH_REQUIRED=true`, `/repos/*` returns `401` until the user is signed in. App installation credentials still open PRs; OAuth identifies the human user.
+When OAuth is configured and `AUTH_REQUIRED=true`, `/repos/*` returns `401` until the user is signed in. Installation tokens open PRs; OAuth identifies the human and discovers their installation.
 
 ### Scheduled watcher
 
