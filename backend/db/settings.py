@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     github_app_installation_id: str | None = None
     github_default_base_branch: str = ""  # empty = use each repo's GitHub default_branch
 
+    # GitHub App user OAuth ("Login with GitHub")
+    github_client_id: str | None = None
+    github_client_secret: str | None = None
+    github_oauth_redirect_uri: str = "http://localhost:8000/auth/github/callback"
+    frontend_url: str = "http://localhost:5173"
+    session_secret: str = "dev-change-me-selfpi-session"
+    # When true and OAuth is configured, /repos/* requires a logged-in session
+    auth_required: bool = True
+
     # Local path to the connected repo checkout (scanner target)
     repo_path: str | None = None
 
@@ -38,6 +47,15 @@ class Settings(BaseSettings):
             and self.github_app_private_key
             and self.github_app_installation_id
         )
+
+    @property
+    def oauth_ready(self) -> bool:
+        return bool(self.github_client_id and self.github_client_secret)
+
+    @property
+    def login_required(self) -> bool:
+        """Gate connect-repo behind Login with GitHub when OAuth is configured."""
+        return bool(self.auth_required and self.oauth_ready)
 
 
 @lru_cache

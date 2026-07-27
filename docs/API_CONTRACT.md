@@ -145,15 +145,41 @@ Public config for the Settings screen (no secrets).
 }
 ```
 
-`connected_repo` is the workspace binding from `POST /repos/connect` (or `null` if none). `watch_*` describe the background live-API poller.
+`connected_repo` is the workspace binding from `POST /repos/connect` (or `null` if none). `watch_*` describe the background live-API poller. When OAuth is configured, `authenticated` / `user` / `login_url` reflect the signed-in GitHub identity.
+
+---
+
+## Auth (Login with GitHub)
+
+GitHub App **user-to-server OAuth**. Requires `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and a Callback URL on the App matching `GITHUB_OAUTH_REDIRECT_URI`.
+
+### `GET /auth/github/login`
+Redirects the browser to GitHub’s authorize URL. Sets a short-lived `selfpi_oauth_state` cookie.
+
+### `GET /auth/github/callback`
+Exchanges `code` for a user token, loads `/user`, sets httponly `selfpi_session` cookie, redirects to `{FRONTEND_URL}/settings?auth=ok` (or `auth=error`).
+
+### `GET /auth/me`
+```json
+{
+  "authenticated": true,
+  "oauth_configured": true,
+  "login_required": true,
+  "user": { "id": 1, "login": "octocat", "name": "Mono", "avatar_url": "…", "html_url": "…" },
+  "login_url": "/auth/github/login"
+}
+```
+
+### `POST /auth/logout`
+Clears the session cookie. `{ "logged_out": true }`.
+
+When `AUTH_REQUIRED=true` and OAuth is configured, `/repos/*` returns `401 login_required` until the user is signed in.
 
 ---
 
 ## Connected repo (GitHub App)
 
-v1 uses the **GitHub App installation token** to list repos the App can already access. No user OAuth callback is required when the App is installed on the target account/org.
-
-For strangers / multi-user later: add GitHub App user-to-server OAuth (authorize → callback → user token) so a user can install the App and list personal repos. Documented in README; not required for single-user local use.
+Lists repos via the **installation token**. Connecting a repo requires Login with GitHub when OAuth is configured.
 
 ### `GET /repos`
 List repositories accessible to the configured App installation.

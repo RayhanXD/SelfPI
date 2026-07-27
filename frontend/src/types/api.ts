@@ -44,6 +44,27 @@ export interface SettingsResponse {
   connected_repo?: string | null;
   watch_interval_seconds?: number;
   watch_enabled?: boolean;
+  oauth_configured?: boolean;
+  login_required?: boolean;
+  authenticated?: boolean;
+  user?: AuthUser | null;
+  login_url?: string | null;
+}
+
+export interface AuthUser {
+  id?: number | null;
+  login: string;
+  name?: string | null;
+  avatar_url?: string | null;
+  html_url?: string | null;
+}
+
+export interface MeResponse {
+  authenticated: boolean;
+  oauth_configured: boolean;
+  login_required: boolean;
+  user: AuthUser | null;
+  login_url?: string | null;
 }
 
 export interface ConnectedRepo {

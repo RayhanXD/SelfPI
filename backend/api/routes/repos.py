@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from api.auth.deps import require_login
 from api.models import (
     ConnectRepoRequest,
     ConnectedRepo,
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/repos", tags=["repos"])
 
 
 @router.get("/connected", response_model=ConnectedRepo | None)
-def get_connected() -> ConnectedRepo | None:
+def get_connected(_user: dict = Depends(require_login)) -> ConnectedRepo | None:
     summary = connected_summary()
     if not summary:
         return None
@@ -26,7 +27,7 @@ def get_connected() -> ConnectedRepo | None:
 
 
 @router.get("", response_model=ListInstallationReposResponse)
-def list_accessible_repos() -> ListInstallationReposResponse:
+def list_accessible_repos(_user: dict = Depends(require_login)) -> ListInstallationReposResponse:
     """Repos the GitHub App installation can access (installation token)."""
     s = get_settings()
     if not s.github_ready:
@@ -69,7 +70,7 @@ def list_accessible_repos() -> ListInstallationReposResponse:
 
 
 @router.post("/connect", response_model=ConnectedRepo)
-def connect(body: ConnectRepoRequest) -> ConnectedRepo:
+def connect(body: ConnectRepoRequest, _user: dict = Depends(require_login)) -> ConnectedRepo:
     """Persist the connected repo and stamp it onto watched APIs."""
     s = get_settings()
     full_name = body.full_name.strip()
@@ -123,6 +124,6 @@ def connect(body: ConnectRepoRequest) -> ConnectedRepo:
 
 
 @router.delete("/connected", response_model=dict)
-def disconnect() -> dict:
+def disconnect(_user: dict = Depends(require_login)) -> dict:
     deleted = disconnect_repo(clear_api_repos=False)
     return {"disconnected": deleted}

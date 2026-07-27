@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { EmptyState, ErrorState, SkeletonRows } from "../components/EmptyState";
 import { api } from "../lib/api";
@@ -6,6 +7,7 @@ import { useAsync } from "../lib/useAsync";
 import type { InstallationRepo, SettingsResponse } from "../types/api";
 
 export function SettingsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     data: apis,
     error: apisError,
@@ -27,8 +29,25 @@ export function SettingsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionOk, setActionOk] = useState<string | null>(null);
 
+  useEffect(() => {
+    const auth = searchParams.get("auth");
+    if (!auth) return;
+    if (auth === "ok") setActionOk("Signed in with GitHub.");
+    if (auth === "error") {
+      const reason = searchParams.get("reason") || "login_failed";
+      setActionError(`GitHub login failed (${reason}).`);
+    }
+    setSearchParams({}, { replace: true });
+    reloadSettings();
+  }, [searchParams, setSearchParams, reloadSettings]);
+
   const loadRepos = useCallback(async (cfg: SettingsResponse | null) => {
     if (!cfg?.github_configured) {
+      setRepos(null);
+      setReposError(null);
+      return;
+    }
+    if (cfg.login_required && !cfg.authenticated) {
       setRepos(null);
       setReposError(null);
       return;
@@ -62,10 +81,18 @@ export function SettingsPage() {
   }
 
   const primary = apis.find((a) => a.mode === "live") ?? apis[0];
-  const connected =
-    settings.connected_repo ?? primary?.repo ?? null;
+  const connected = settings.connected_repo ?? primary?.repo ?? null;
+  const needsLogin = Boolean(settings.login_required && !settings.authenticated);
 
   const rows: Array<{ label: string; value: string }> = [
+    {
+      label: "Signed in",
+      value: settings.user?.login
+        ? `@${settings.user.login}`
+        : settings.oauth_configured
+          ? "Not signed in"
+          : "OAuth not configured",
+    },
     {
       label: "GitHub App",
       value: settings.github_configured ? "Configured" : "Not configured",
@@ -94,6 +121,21 @@ export function SettingsPage() {
     reloadSettings();
   }
 
+  async function onLogout() {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await api.logout();
+      setActionOk("Signed out.");
+      setRepos(null);
+      await refreshAll();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onConnect() {
     if (!selected) return;
     setBusy(true);
@@ -103,7 +145,12 @@ export function SettingsPage() {
       const doc = await api.connectRepo(selected);
       setActionOk(`Connected ${doc.full_name}`);
       await refreshAll();
-      await loadRepos({ ...settings, github_configured: true, connected_repo: doc.full_name });
+      await loadRepos({
+        ...settings,
+        github_configured: true,
+        connected_repo: doc.full_name,
+        authenticated: true,
+      });
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -130,6 +177,51 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-8">
+      <section className="max-w-lg space-y-3">
+        <div>
+          <h2 className="text-[13px] font-medium tracking-[-0.01em] text-[#f2f2f2]">
+            Account
+          </h2>
+          <p className="mt-1 text-[12px] leading-relaxed text-[#6e6e6e]">
+            Production auth uses Login with GitHub (OAuth). Connecting a repo
+            requires a signed-in session once OAuth is configured.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/[0.07] px-5 py-4">
+          {settings.user?.avatar_url ? (
+            <img
+              src={settings.user.avatar_url}
+              alt=""
+              className="h-8 w-8 rounded-full border border-white/[0.08]"
+            />
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] text-[#f2f2f2]">
+              {settings.user
+                ? settings.user.name || `@${settings.user.login}`
+                : "Not signed in"}
+            </div>
+            {settings.user?.login ? (
+              <div className="font-mono text-[11px] text-[#6e6e6e]">@{settings.user.login}</div>
+            ) : null}
+          </div>
+          {settings.authenticated ? (
+            <Button variant="ghost" disabled={busy} onClick={() => void onLogout()}>
+              Sign out
+            </Button>
+          ) : settings.oauth_configured && settings.login_url ? (
+            <a
+              href={settings.login_url}
+              className="inline-flex h-8 items-center rounded-lg bg-[#f2f2f2] px-3 text-[12px] font-medium text-[#0a0a0a] hover:bg-white"
+            >
+              Login with GitHub
+            </a>
+          ) : (
+            <span className="text-[12px] text-[#5c5c5c]">Set GITHUB_CLIENT_ID / SECRET</span>
+          )}
+        </div>
+      </section>
+
       <section className="space-y-3">
         <h2 className="text-[13px] font-medium tracking-[-0.01em] text-[#f2f2f2]">
           Workspace
@@ -174,9 +266,24 @@ export function SettingsPage() {
 
         {!settings.github_configured ? (
           <div className="rounded-2xl border border-white/[0.07] px-5 py-4 text-[12px] leading-relaxed text-[#6e6e6e]">
-            Configure the GitHub App in <span className="font-mono text-[#8a8a8a]">backend/.env</span>{" "}
-            (<span className="font-mono">GITHUB_APP_ID</span>, private key, installation id),
+            Configure the GitHub App in{" "}
+            <span className="font-mono text-[#8a8a8a]">backend/.env</span> (
+            <span className="font-mono">GITHUB_APP_ID</span>, private key, installation id),
             install it on your repos, then reload Settings.
+          </div>
+        ) : needsLogin ? (
+          <div className="space-y-3 rounded-2xl border border-white/[0.07] px-5 py-4">
+            <p className="text-[12px] leading-relaxed text-[#6e6e6e]">
+              Sign in with GitHub to list and connect repositories.
+            </p>
+            {settings.login_url ? (
+              <a
+                href={settings.login_url}
+                className="inline-flex h-8 items-center rounded-lg bg-[#f2f2f2] px-3 text-[12px] font-medium text-[#0a0a0a] hover:bg-white"
+              >
+                Login with GitHub
+              </a>
+            ) : null}
           </div>
         ) : (
           <div className="space-y-3 rounded-2xl border border-white/[0.07] px-5 py-4">
@@ -238,14 +345,14 @@ export function SettingsPage() {
                 </div>
               </>
             )}
-            {actionError ? (
-              <p className="text-[12px] text-[#f2555a]">{actionError}</p>
-            ) : null}
-            {actionOk ? (
-              <p className="text-[12px] text-[#7aa3c4]">{actionOk}</p>
-            ) : null}
           </div>
         )}
+        {actionError ? (
+          <p className="text-[12px] text-[#f2555a]">{actionError}</p>
+        ) : null}
+        {actionOk ? (
+          <p className="text-[12px] text-[#7aa3c4]">{actionOk}</p>
+        ) : null}
       </section>
     </div>
   );

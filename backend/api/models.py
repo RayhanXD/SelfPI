@@ -48,6 +48,27 @@ class SettingsResponse(BaseModel):
     connected_repo: str | None = None
     watch_interval_seconds: int = 300
     watch_enabled: bool = True
+    oauth_configured: bool = False
+    login_required: bool = False
+    authenticated: bool = False
+    user: AuthUser | None = None
+    login_url: str | None = None
+
+
+class AuthUser(BaseModel):
+    id: int | None = None
+    login: str
+    name: str | None = None
+    avatar_url: str | None = None
+    html_url: str | None = None
+
+
+class MeResponse(BaseModel):
+    authenticated: bool
+    oauth_configured: bool
+    login_required: bool
+    user: AuthUser | None = None
+    login_url: str | None = None
 
 
 class ConnectedRepo(BaseModel):

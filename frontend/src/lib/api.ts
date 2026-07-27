@@ -5,6 +5,7 @@ import type {
   ChangeSummary,
   ConnectedRepo,
   ListInstallationReposResponse,
+  MeResponse,
   SettingsResponse,
 } from "../types/api";
 
@@ -12,6 +13,7 @@ const BASE = "";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
+    credentials: "include",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
@@ -35,6 +37,8 @@ export const api = {
   listApis: () => request<ApiSummary[]>("/apis"),
   getApi: (id: string) => request<ApiSummary>(`/apis/${id}`),
   getSettings: () => request<SettingsResponse>("/settings"),
+  getMe: () => request<MeResponse>("/auth/me"),
+  logout: () => request<{ logged_out: boolean }>("/auth/logout", { method: "POST" }),
   listRepos: () => request<ListInstallationReposResponse>("/repos"),
   getConnectedRepo: () => request<ConnectedRepo | null>("/repos/connected"),
   connectRepo: (full_name: string, repo_path?: string | null) =>

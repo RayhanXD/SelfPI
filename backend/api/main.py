@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from api.routes import (
     apis_router,
+    auth_router,
     changes_router,
     repos_router,
     settings_router,
@@ -80,6 +81,7 @@ app.include_router(changes_router)
 app.include_router(specs_router)
 app.include_router(settings_router)
 app.include_router(repos_router)
+app.include_router(auth_router)
 
 
 @app.exception_handler(Exception)

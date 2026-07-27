@@ -71,27 +71,35 @@ GITHUB_APP_INSTALLATION_ID=12345678
 GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
 # Optional — leave empty to use each repo's GitHub default branch (main/master/…)
 GITHUB_DEFAULT_BASE_BRANCH=
+
+# Login with GitHub (production)
+GITHUB_CLIENT_ID=Iv1.xxxxxxxx
+GITHUB_CLIENT_SECRET=xxxxxxxx
+GITHUB_OAUTH_REDIRECT_URI=http://localhost:8000/auth/github/callback
+FRONTEND_URL=http://localhost:5173
+SESSION_SECRET=long-random-string
+AUTH_REQUIRED=true
 ```
 
 PEM newlines can be literal multiline or escaped `\n`.
 
-4. Point the watched API’s `repo` field at `owner/name` (seed defaults to `myorg/billing-app` — change via seed or Mongo). Optionally set `REPO_PATH` to a local checkout for scanning (defaults to `fixtures/sample_repo`).
+On the GitHub App settings page also set:
+- **Callback URL:** `http://localhost:8000/auth/github/callback` (must match `GITHUB_OAUTH_REDIRECT_URI`)
+- Generate a **Client secret** (Client ID is shown on the App’s General page)
+
+4. Point the watched API’s `repo` field at `owner/name` via Settings → Connect (after login). Optionally set `REPO_PATH` to a local checkout for scanning.
 
 5. Restart the API, run `make reset`, **Bump spec** on the demo API, open the change, click **Open PR** (or rely on auto-open when the App is configured).
 
-Settings (`/settings`) shows whether the App is configured (no secrets) and lets you **Connect repository** from the App installation's accessible repos.
+### Login with GitHub + Connect repo
 
-### Connect repo (Settings)
+1. Open **Settings**
+2. Click **Login with GitHub** (requires `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`)
+3. After redirect back, pick a repo the App can access → **Connect repo**
 
-With the App installed and `GITHUB_APP_*` set:
+Endpoints: `GET /auth/github/login`, `GET /auth/github/callback`, `GET /auth/me`, `POST /auth/logout`, plus `/repos/*` (see `docs/API_CONTRACT.md`).
 
-1. Open **Settings** in the UI
-2. Under **Connect repository**, pick a repo from the installation list
-3. Click **Connect repo** — SelfPI stores the binding in Mongo (`repos` collection) and stamps `repo` onto watched APIs
-
-Endpoints: `GET /repos`, `POST /repos/connect`, `GET /repos/connected`, `DELETE /repos/connected` (see `docs/API_CONTRACT.md`).
-
-v1 lists repos via the **installation token** (App already installed). User-to-server OAuth is not required for this path; add it later so strangers can install the App and authorize listing of personal repos.
+When OAuth is configured and `AUTH_REQUIRED=true`, `/repos/*` returns `401` until the user is signed in. App installation credentials still open PRs; OAuth identifies the human user.
 
 ### Scheduled watcher
 

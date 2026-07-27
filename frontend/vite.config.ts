@@ -11,6 +11,7 @@ export default defineConfig({
       "/changes": "http://localhost:8000",
       "/settings": "http://localhost:8000",
       "/repos": "http://localhost:8000",
+      "/auth": "http://localhost:8000",
       "/health": "http://localhost:8000",
     },
   },
