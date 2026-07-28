@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api, githubLoginUrl } from "./api";
+import { api, githubLoginUrl, setSessionToken } from "./api";
 import type { AuthUser, MeResponse } from "../types/api";
 
 interface AuthState {
@@ -21,6 +21,7 @@ interface AuthState {
   /** Login URL that returns to a specific SPA path after OAuth. */
   loginHrefFor: (next?: string) => string;
   reload: () => Promise<MeResponse | null>;
+  applySession: (me: MeResponse, sessionToken?: string | null) => void;
   logout: () => Promise<void>;
 }
 
@@ -29,6 +30,12 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const applySession = useCallback((data: MeResponse, sessionToken?: string | null) => {
+    if (sessionToken) setSessionToken(sessionToken);
+    setMe(data);
+    setLoading(false);
+  }, []);
 
   const reload = useCallback(async () => {
     try {
@@ -55,8 +62,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [reload]);
 
   const logout = useCallback(async () => {
-    await api.logout();
-    await reload();
+    try {
+      await api.logout();
+    } finally {
+      setSessionToken(null);
+      await reload();
+    }
   }, [reload]);
 
   const loginHrefFor = useCallback((next: string = "/app") => githubLoginUrl(next), []);
@@ -71,9 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginUrl: me?.oauth_configured || me?.login_url ? githubLoginUrl("/app") : null,
       loginHrefFor,
       reload,
+      applySession,
       logout,
     }),
-    [loading, me, reload, logout, loginHrefFor],
+    [loading, me, reload, logout, loginHrefFor, applySession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

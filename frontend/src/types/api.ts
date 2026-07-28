@@ -73,6 +73,10 @@ export interface MeResponse {
   install_url?: string | null;
 }
 
+export interface HandoffResponse extends MeResponse {
+  session_token: string;
+}
+
 export interface InstallationSyncResponse {
   app_installed: boolean;
   install_url?: string | null;

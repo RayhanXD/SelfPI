@@ -139,3 +139,68 @@ def test_sanitize_rejects_open_redirect():
     assert sanitize_post_login_path("//evil.example") == "/app"
     assert sanitize_post_login_path("/auth/callback") == "/app"
     assert sanitize_post_login_path('"/app/settings"') == "/app/settings"
+
+
+def test_handoff_exchange_sets_session(monkeypatch):
+    from api.auth.session import create_handoff_token, load_session
+    from api.main import app
+    from db.settings import get_settings
+
+    monkeypatch.setenv("SESSION_SECRET", "test-secret-handoff")
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "Iv1.client")
+    monkeypatch.setenv("GITHUB_CLIENT_SECRET", "secret")
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        "db.settings.Settings.oauth_ready",
+        property(lambda self: True),
+    )
+
+    session = {
+        "id": 42,
+        "login": "octo",
+        "name": "Octo",
+        "avatar_url": None,
+        "html_url": "https://github.com/octo",
+        "access_token": "ghu_test",
+    }
+    handoff = create_handoff_token(session)
+
+    http = TestClient(app)
+    resp = http.post("/auth/handoff", json={"handoff": handoff})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["authenticated"] is True
+    assert body["user"]["login"] == "octo"
+    assert body["session_token"]
+    loaded = load_session(body["session_token"])
+    assert loaded is not None
+    assert loaded["login"] == "octo"
+
+    # Bearer works without cookie
+    http2 = TestClient(app)
+    me = http2.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {body['session_token']}"},
+    )
+    assert me.status_code == 200
+    assert me.json()["authenticated"] is True
+    assert me.json()["user"]["login"] == "octo"
+
+    bad = http.post("/auth/handoff", json={"handoff": "not-a-real-token"})
+    assert bad.status_code == 401
+
+
+def test_bearer_read_session(monkeypatch):
+    from api.auth.session import dump_session
+    from api.main import app
+    from db.settings import get_settings
+
+    monkeypatch.setenv("SESSION_SECRET", "test-secret-bearer")
+    get_settings.cache_clear()
+
+    token = dump_session({"id": 1, "login": "ray", "name": "Ray"})
+    http = TestClient(app)
+    resp = http.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json()["authenticated"] is True
+    assert resp.json()["user"]["login"] == "ray"

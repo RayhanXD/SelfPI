@@ -1,22 +1,27 @@
-"""Signed cookie session for GitHub OAuth users."""
+"""Signed cookie + bearer session for GitHub OAuth users."""
 
 from __future__ import annotations
 
-import json
 from typing import Any, Literal
 
-from itsdangerous import BadSignature, URLSafeSerializer
+from itsdangerous import BadSignature, BadTimeSignature, URLSafeSerializer, URLSafeTimedSerializer
 from starlette.requests import Request
 from starlette.responses import Response
 
 from db.settings import get_settings
 
 COOKIE_NAME = "selfpi_session"
+BEARER_HEADER = "Authorization"
+HANDOFF_MAX_AGE_SECONDS = 180
 SameSite = Literal["lax", "strict", "none"]
 
 
 def _serializer() -> URLSafeSerializer:
     return URLSafeSerializer(get_settings().session_secret, salt="selfpi-auth")
+
+
+def _handoff_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(get_settings().session_secret, salt="selfpi-handoff")
 
 
 def dump_session(data: dict[str, Any]) -> str:
@@ -31,11 +36,43 @@ def load_session(token: str) -> dict[str, Any] | None:
     return raw if isinstance(raw, dict) else None
 
 
-def read_session(request: Request) -> dict[str, Any] | None:
-    token = request.cookies.get(COOKIE_NAME)
-    if not token:
+def create_handoff_token(session: dict[str, Any]) -> str:
+    """Short-lived token for SPA to finish login without relying on cross-site cookies."""
+    return _handoff_serializer().dumps(session)
+
+
+def consume_handoff_token(token: str) -> dict[str, Any] | None:
+    try:
+        raw = _handoff_serializer().loads(token, max_age=HANDOFF_MAX_AGE_SECONDS)
+    except (BadSignature, BadTimeSignature):
         return None
-    return load_session(token)
+    return raw if isinstance(raw, dict) else None
+
+
+def _cookie_value(request: Request, name: str) -> str | None:
+    raw = request.cookies.get(name)
+    if raw is None:
+        return None
+    return raw.strip().strip('"').strip("'")
+
+
+def _bearer_token(request: Request) -> str | None:
+    header = request.headers.get(BEARER_HEADER) or ""
+    if not header.lower().startswith("bearer "):
+        return None
+    token = header[7:].strip()
+    return token or None
+
+
+def read_session(request: Request) -> dict[str, Any] | None:
+    """Load session from cookie or Authorization: Bearer (SPA handoff fallback)."""
+    for token in (_cookie_value(request, COOKIE_NAME), _bearer_token(request)):
+        if not token:
+            continue
+        session = load_session(token)
+        if session:
+            return session
+    return None
 
 
 def cookie_flags() -> tuple[bool, SameSite]:
@@ -110,6 +147,7 @@ def sanitize_post_login_path(next_path: str | None) -> str:
 
 def set_oauth_next_cookie(response: Response, next_path: str) -> None:
     secure, samesite = cookie_flags()
+    # Avoid quoting issues — path is already sanitized to /...
     response.set_cookie(
         "selfpi_oauth_next",
         sanitize_post_login_path(next_path),
@@ -134,9 +172,12 @@ def clear_oauth_next_cookie(response: Response) -> None:
 def session_user_public(session: dict[str, Any] | None) -> dict[str, Any] | None:
     if not session:
         return None
+    login = session.get("login")
+    if not login:
+        return None
     return {
         "id": session.get("id"),
-        "login": session.get("login"),
+        "login": login,
         "name": session.get("name"),
         "avatar_url": session.get("avatar_url"),
         "html_url": session.get("html_url"),

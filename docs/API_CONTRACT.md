@@ -185,9 +185,12 @@ For public onboarding set the App **Setup URL** to `{API}/auth/github/installed`
 Redirects the browser to GitHub’s authorize URL. Optional query `next` (relative SPA path, default `/app`) is stored in a short-lived `selfpi_oauth_next` cookie and returned after auth. Also sets `selfpi_oauth_state`.
 
 ### `GET /auth/github/callback`
-Exchanges `code` for a user token, loads `/user`, discovers this App’s installation via `GET /user/installations`, sets httponly `selfpi_session` cookie, redirects to `{FRONTEND_URL}/auth/callback?auth=ok&next=…` (or `auth=error`). The SPA reloads the session and navigates to `next` (default `/app`).
+Exchanges `code` for a user token, loads `/user`, discovers this App’s installation via `GET /user/installations`, sets httponly `selfpi_session` cookie, redirects to `{FRONTEND_URL}/auth/callback?auth=ok&next=…&handoff=…` (or `auth=error`). The SPA posts `handoff` to `/auth/handoff` (preferred when cross-site cookies are blocked) or reloads `/auth/me`, then navigates to `next` (default `/app`).
 
-In production (`ENV=production` or HTTPS `FRONTEND_URL`), session and OAuth state cookies use `Secure` + `SameSite=None` so a cross-origin Vercel frontend can call the API with `credentials: include`. Locally they use `SameSite=Lax` without `Secure`.
+In production (`ENV=production` or HTTPS `FRONTEND_URL`), session and OAuth state cookies use `Secure` + `SameSite=None` so a cross-origin Vercel frontend can call the API with `credentials: include`. Locally they use `SameSite=Lax` without `Secure`. The SPA also keeps a `session_token` bearer from `/auth/handoff` in `sessionStorage` as a fallback when the browser blocks third-party cookies.
+
+### `POST /auth/handoff`
+Body: `{ "handoff": "<token from callback URL>" }`. Validates the short-lived handoff (≈3 minutes), sets the session cookie, returns the `/auth/me` payload plus `session_token` (same signed value as the cookie). Subsequent API calls may send `Authorization: Bearer <session_token>`.
 
 ### `GET /auth/github/install`
 Redirects to `https://github.com/apps/{slug}/installations/new` (slug from `GITHUB_APP_SLUG` or `GET /app`).

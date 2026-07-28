@@ -20,6 +20,9 @@ from api.auth.session import (
     clear_oauth_next_cookie,
     clear_oauth_state_cookie,
     clear_session_cookie,
+    consume_handoff_token,
+    create_handoff_token,
+    dump_session,
     read_session,
     sanitize_post_login_path,
     session_user_public,
@@ -27,7 +30,7 @@ from api.auth.session import (
     set_oauth_state_cookie,
     set_session_cookie,
 )
-from api.models import AuthUser, InstallationSyncResponse, MeResponse
+from api.models import AuthUser, HandoffRequest, HandoffResponse, InstallationSyncResponse, MeResponse
 from db.settings import get_settings
 
 logger = logging.getLogger("selfpi.auth")
@@ -81,6 +84,8 @@ def github_callback(
         return fail("missing_code")
 
     expected = request.cookies.get("selfpi_oauth_state")
+    if expected:
+        expected = expected.strip().strip('"').strip("'")
     if not expected or expected != state:
         return fail("bad_state")
 
@@ -104,8 +109,10 @@ def github_callback(
     except Exception as exc:
         logger.warning("installation sync on login failed: %s", exc)
 
+    handoff = create_handoff_token(session)
     response = RedirectResponse(
-        f"{frontend}/auth/callback?{urlencode({'auth': 'ok', 'next': next_path})}",
+        f"{frontend}/auth/callback?"
+        f"{urlencode({'auth': 'ok', 'next': next_path, 'handoff': handoff})}",
         status_code=302,
     )
     set_session_cookie(response, session)
@@ -240,6 +247,43 @@ def me(request: Request) -> MeResponse:
         app_installed=bool(status["app_installed"]),
         install_url=status.get("install_url"),
     )
+
+
+@router.post("/handoff", response_model=HandoffResponse)
+def complete_handoff(body: HandoffRequest) -> JSONResponse:
+    """Exchange the one-time OAuth handoff for a session cookie + bearer token.
+
+    Cross-origin SPAs (Vercel → CloudFront) often cannot read the Set-Cookie from
+    the GitHub redirect; the SPA posts the handoff and keeps `session_token`.
+    """
+    s = get_settings()
+    session = consume_handoff_token(body.handoff)
+    user = session_user_public(session)
+    if not session or not user:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error": {
+                    "code": "handoff_invalid",
+                    "message": "Sign-in expired. Try Continue with GitHub again.",
+                }
+            },
+        )
+
+    status = installation_status(session)
+    payload = HandoffResponse(
+        authenticated=True,
+        oauth_configured=s.oauth_ready,
+        login_required=s.login_required,
+        user=AuthUser(**user),
+        login_url="/auth/github/login" if s.oauth_ready else None,
+        app_installed=bool(status["app_installed"]),
+        install_url=status.get("install_url"),
+        session_token=dump_session(session),
+    )
+    response = JSONResponse(payload.model_dump())
+    set_session_cookie(response, session)
+    return response
 
 
 @router.post("/logout")

@@ -6,6 +6,7 @@ import type {
   ConnectedRepo,
   DetectApisResponse,
   ListInstallationReposResponse,
+  HandoffResponse,
   InstallationSyncResponse,
   MeResponse,
   SettingsResponse,
@@ -45,6 +46,25 @@ export function githubLoginUrl(next: string = "/app"): string {
   return `${base}${sep}next=${encodeURIComponent(dest)}`;
 }
 
+const BEARER_KEY = "selfpi_session_token";
+
+export function getSessionToken(): string | null {
+  try {
+    return sessionStorage.getItem(BEARER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setSessionToken(token: string | null): void {
+  try {
+    if (token) sessionStorage.setItem(BEARER_KEY, token);
+    else sessionStorage.removeItem(BEARER_KEY);
+  } catch {
+    /* private mode / blocked storage */
+  }
+}
+
 const DEFAULT_TIMEOUT_MS = 12_000;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -62,11 +82,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       if (userSignal.aborted) controller.abort();
       else userSignal.addEventListener("abort", () => controller.abort(), { once: true });
     }
+    const bearer = getSessionToken();
     const res = await fetch(resolveApiUrl(path), {
       credentials: "include",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
+        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
         ...(rest.headers ?? {}),
       },
       ...rest,
@@ -97,6 +119,11 @@ export const api = {
   getApi: (id: string) => request<ApiSummary>(`/apis/${id}`),
   getSettings: () => request<SettingsResponse>("/settings"),
   getMe: () => request<MeResponse>("/auth/me"),
+  completeHandoff: (handoff: string) =>
+    request<HandoffResponse>("/auth/handoff", {
+      method: "POST",
+      body: JSON.stringify({ handoff }),
+    }),
   logout: () => request<{ logged_out: boolean }>("/auth/logout", { method: "POST" }),
   syncInstallation: () =>
     request<InstallationSyncResponse>("/auth/github/sync-installation", {

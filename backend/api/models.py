@@ -76,6 +76,16 @@ class MeResponse(BaseModel):
     install_url: str | None = None
 
 
+class HandoffRequest(BaseModel):
+    handoff: str
+
+
+class HandoffResponse(MeResponse):
+    """Me payload plus a bearer token the SPA keeps when cross-site cookies are blocked."""
+
+    session_token: str
+
+
 class InstallationSyncResponse(BaseModel):
     app_installed: bool
     install_url: str | None = None
