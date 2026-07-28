@@ -14,6 +14,7 @@ from api.models import (
     RescanResponse,
     SpecDiff,
 )
+from api.workspace import visible_api_ids
 from db.client import changes
 from scanner.ir.enums import ChangeKind, ChangeStatus, PrState
 from scanner.ir.types import CallSite
@@ -75,11 +76,24 @@ def _detail_from_doc(doc: dict) -> ChangeDetail:
 def list_changes(
     api_id: str | None = None,
     status: str | None = None,
+    scope: str = Query("workspace", pattern="^(workspace|all)$"),
     limit: int = Query(default=50, ge=1, le=200),
     cursor: str | None = None,
 ) -> ChangeListResponse:
+    """Change feed. Default scope matches GET /apis (workspace-visible APIs only)."""
     query: dict = {}
-    if api_id:
+    if scope == "workspace":
+        allowed = visible_api_ids(scope="workspace")
+        if api_id:
+            if api_id not in allowed:
+                return ChangeListResponse(items=[], next_cursor=None)
+            query["api_id"] = api_id
+        else:
+            # No visible APIs → empty feed (do not leak seed/demo changes).
+            if not allowed:
+                return ChangeListResponse(items=[], next_cursor=None)
+            query["api_id"] = {"$in": sorted(allowed)}
+    elif api_id:
         query["api_id"] = api_id
     if status:
         query["status"] = status

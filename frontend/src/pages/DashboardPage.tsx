@@ -315,7 +315,7 @@ export function DashboardPage() {
         />
         {stats.recent.length === 0 ? (
           <Panel className="px-5 py-8">
-            <EmptyState message="No changes detected yet. Check a live API or simulate on the demo." />
+            <EmptyState message="No changes detected yet. Check a live API to start." />
           </Panel>
         ) : (
           <Panel>

@@ -104,7 +104,7 @@ On the GitHub App settings page also set:
 2. **Login with GitHub**
 3. **Install SelfPI on GitHub** → pick repos → GitHub redirects back (`/auth/github/installed`)
 4. Pick a repo → **Connect repo**
-5. SelfPI **clones the repo** into `.cache/checkouts/` and **auto-detects APIs** via `backend/detector/catalog.py` (OpenAI, Stripe, Twilio, …). Dashboard shows only APIs for that connected repo.
+5. SelfPI **clones the repo** into `.cache/checkouts/` and **auto-detects APIs** via `backend/detector/catalog.py` (90+ vendors — OpenAI, Stripe, Twilio, AWS, Datadog, …). Dashboard shows only APIs for that connected repo.
 
 `make reset` = clean prod workspace (no demo APIs). Optional Stripe harness: `make reset-demo` / `make seed-demo`.
 

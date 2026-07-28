@@ -13,7 +13,7 @@ List watched APIs (Watched APIs screen).
 
 Query: `scope=workspace` (default) | `scope=all`.
 
-- `workspace` — when a repo is connected, only APIs whose `repo` matches that connection. The local `stripe-demo` API is included only when `INCLUDE_DEMO_APIS=true` **and** nothing is connected (or the connected repo is the demo consumer).
+- `workspace` — when a repo is connected, only APIs whose `repo` matches that connection. Seed harness docs (`source: "seed"`, including live `stripe` from `make seed-demo`) and `mode: "demo"` APIs are included only when `INCLUDE_DEMO_APIS=true`.
 - `all` — every watched API doc (debug).
 
 ```json
@@ -64,7 +64,9 @@ Manually trigger a spec poll now ("Check now" button). Response:
 ## Changes
 
 ### `GET /changes`
-Change feed. Query params: `api_id?`, `status?` (e.g. `breaking_change_unhandled`), `limit?`, `cursor?`.
+Change feed. Query params: `api_id?`, `status?` (e.g. `breaking_change_unhandled`), `scope?` (`workspace` default | `all`), `limit?`, `cursor?`.
+
+Default `scope=workspace` matches `GET /apis`: only changes whose `api_id` is in the workspace-visible API set. Seed/demo harness changes are hidden unless `INCLUDE_DEMO_APIS=true`. Use `scope=all` for an unfiltered debug feed.
 
 ```json
 {
@@ -272,7 +274,7 @@ Bind a repo as the workspace target. Request: `{ "full_name": "myorg/billing-app
 
 When the App is configured, `full_name` must appear in `GET /repos`. Does **not** stamp every watched API onto the new repo (avoids attaching `stripe-demo` / seeded leftovers). Detection stamps only matched catalog APIs.
 
-After connect succeeds, SelfPI **auto-detects third-party APIs** from the local checkout (`repo_path` → `REPO_PATH` → `demo-consumer/` when present) using the Python catalog in `backend/detector/catalog.py` (Stripe, OpenAI, Twilio, GitHub, Slack, Discord, Plaid, Square, Anthropic, …). Matching is recall-first on `import` / `from` and dependency manifests. For each **watchable** hit (has a public OpenAPI URL), ensures a live watched API with that id. Catalog hits without a spec URL are returned in `unwatchable` and are not ensured. Undetected catalog APIs previously bound to this repo are detached (repo cleared). Never removes `stripe-demo`.
+After connect succeeds, SelfPI **auto-detects third-party APIs** from the local checkout (`repo_path` → `REPO_PATH` → `demo-consumer/` when present) using the Python catalog in `backend/detector/catalog.py` (90+ vendors: Stripe, OpenAI, Twilio, GitHub, Slack, AWS, Datadog, Supabase, …). Matching is recall-first on `import` / `from` and dependency manifests. For each **watchable** hit (has a public OpenAPI URL), ensures a live watched API with that id. Catalog hits without a spec URL are returned in `unwatchable` and are not ensured. Undetected catalog APIs previously bound to this repo are detached (repo cleared). Never removes `stripe-demo`.
 
 Response: connected repo object plus `detected_apis` / `unwatchable`:
 

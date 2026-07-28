@@ -188,6 +188,7 @@ def test_list_apis_workspace_filters_to_connected_repo():
             "_id": "stripe-demo",
             "name": "Stripe (demo)",
             "mode": "demo",
+            "source": "seed",
             "repo": "RayhanXD/selfpi-demo-consumer",
             "status": "up_to_date",
             "open_change_count": 0,
@@ -199,6 +200,7 @@ def test_list_apis_workspace_filters_to_connected_repo():
             "_id": "stripe",
             "name": "Stripe",
             "mode": "live",
+            "source": "seed",
             "repo": "RayhanXD/selfpi-demo-consumer",
             "status": "up_to_date",
             "open_change_count": 0,
@@ -210,6 +212,7 @@ def test_list_apis_workspace_filters_to_connected_repo():
             "_id": "openai",
             "name": "OpenAI",
             "mode": "live",
+            "source": "detected",
             "repo": "acme/real",
             "status": "up_to_date",
             "open_change_count": 0,
@@ -221,8 +224,102 @@ def test_list_apis_workspace_filters_to_connected_repo():
     resp = http.get("/apis")
     assert resp.status_code == 200
     ids = {a["id"] for a in resp.json()}
-    # Connected to acme/real → only openai; demo hidden (not demo consumer)
+    # Connected to acme/real → only openai; seed/demo harness hidden
     assert ids == {"openai"}
+
+
+def test_list_changes_hides_seed_stripe_for_real_workspace():
+    """Needs-review must not leak leftover Stripe seed/demo change docs."""
+    from api.main import app
+    from db.client import changes
+    from db.repos import connect_repo
+    from fastapi.testclient import TestClient
+
+    connect_repo(full_name="acme/real", propagate_to_apis=False)
+    apis().insert_one(
+        {
+            "_id": "stripe",
+            "name": "Stripe",
+            "mode": "live",
+            "source": "seed",
+            "repo": "RayhanXD/selfpi-demo-consumer",
+            "status": "breaking_change_unhandled",
+            "open_change_count": 1,
+            "languages": ["python"],
+        }
+    )
+    apis().insert_one(
+        {
+            "_id": "openai",
+            "name": "OpenAI",
+            "mode": "live",
+            "source": "detected",
+            "repo": "acme/real",
+            "status": "breaking_change_unhandled",
+            "open_change_count": 1,
+            "languages": ["python"],
+        }
+    )
+    changes().insert_one(
+        {
+            "api_id": "stripe",
+            "operation_id": "createCharge",
+            "kind": "renamed_param",
+            "detail": {},
+            "status": "detected",
+            "call_sites": [],
+            "detected_at": "2026-07-01T00:00:00Z",
+        }
+    )
+    changes().insert_one(
+        {
+            "api_id": "openai",
+            "operation_id": "createChatCompletion",
+            "kind": "removed_field",
+            "detail": {},
+            "status": "detected",
+            "call_sites": [],
+            "detected_at": "2026-07-02T00:00:00Z",
+        }
+    )
+
+    http = TestClient(app)
+    feed = http.get("/changes")
+    assert feed.status_code == 200
+    items = feed.json()["items"]
+    assert len(items) == 1
+    assert items[0]["api_id"] == "openai"
+    assert items[0]["operation_id"] == "createChatCompletion"
+
+    # Explicit api_id for a hidden harness API still returns empty in workspace scope
+    leaked = http.get("/changes", params={"api_id": "stripe"})
+    assert leaked.status_code == 200
+    assert leaked.json()["items"] == []
+
+    # Debug scope still sees everything
+    all_feed = http.get("/changes", params={"scope": "all"})
+    assert {c["api_id"] for c in all_feed.json()["items"]} == {"stripe", "openai"}
+
+
+def test_seed_apis_hidden_when_no_repo_connected():
+    from api.main import app
+    from fastapi.testclient import TestClient
+
+    apis().insert_one(
+        {
+            "_id": "stripe",
+            "name": "Stripe",
+            "mode": "live",
+            "source": "seed",
+            "repo": "RayhanXD/selfpi-demo-consumer",
+            "status": "up_to_date",
+            "open_change_count": 0,
+            "languages": [],
+        }
+    )
+    http = TestClient(app)
+    assert http.get("/apis").json() == []
+    assert http.get("/apis", params={"scope": "all"}).json()[0]["id"] == "stripe"
 
 
 def test_connect_returns_detected_apis():
