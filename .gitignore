@@ -23,6 +23,9 @@ htmlcov/
 .tools/
 agent history/
 
+# Personal resume materials (local only — do not push)
+resume/
+
 # Local checkout cache (GitHub clones for detection)
 .cache/
 

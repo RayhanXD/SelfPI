@@ -17,10 +17,13 @@ from api.auth.installation import (
 )
 from api.auth.oauth import authorize_url, exchange_code, fetch_github_user
 from api.auth.session import (
+    clear_oauth_next_cookie,
     clear_oauth_state_cookie,
     clear_session_cookie,
     read_session,
+    sanitize_post_login_path,
     session_user_public,
+    set_oauth_next_cookie,
     set_oauth_state_cookie,
     set_session_cookie,
 )
@@ -33,17 +36,21 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.get("/github/login")
-def github_login() -> RedirectResponse:
+def github_login(next: str | None = None) -> RedirectResponse:
+    """Start Login with GitHub. Optional `next` is where the SPA lands after auth."""
     s = get_settings()
+    dest = sanitize_post_login_path(next)
     if not s.oauth_ready:
         return RedirectResponse(
-            f"{s.frontend_url.rstrip('/')}/auth/callback?auth=error&reason=oauth_not_configured",
+            f"{s.frontend_url.rstrip('/')}/auth/callback?"
+            f"{urlencode({'auth': 'error', 'reason': 'oauth_not_configured', 'next': dest})}",
             status_code=302,
         )
     state = secrets.token_urlsafe(24)
     url = authorize_url(state=state)
     response = RedirectResponse(url, status_code=302)
     set_oauth_state_cookie(response, state)
+    set_oauth_next_cookie(response, dest)
     return response
 
 
@@ -56,12 +63,17 @@ def github_callback(
 ) -> RedirectResponse:
     s = get_settings()
     frontend = s.frontend_url.rstrip("/")
+    next_path = sanitize_post_login_path(request.cookies.get("selfpi_oauth_next"))
 
     def fail(reason: str) -> RedirectResponse:
-        return RedirectResponse(
-            f"{frontend}/auth/callback?{urlencode({'auth': 'error', 'reason': reason})}",
+        response = RedirectResponse(
+            f"{frontend}/auth/callback?"
+            f"{urlencode({'auth': 'error', 'reason': reason, 'next': next_path})}",
             status_code=302,
         )
+        clear_oauth_state_cookie(response)
+        clear_oauth_next_cookie(response)
+        return response
 
     if error:
         return fail(error)
@@ -92,9 +104,13 @@ def github_callback(
     except Exception as exc:
         logger.warning("installation sync on login failed: %s", exc)
 
-    response = RedirectResponse(f"{frontend}/auth/callback?auth=ok", status_code=302)
+    response = RedirectResponse(
+        f"{frontend}/auth/callback?{urlencode({'auth': 'ok', 'next': next_path})}",
+        status_code=302,
+    )
     set_session_cookie(response, session)
     clear_oauth_state_cookie(response)
+    clear_oauth_next_cookie(response)
     return response
 
 
@@ -106,7 +122,7 @@ def github_install(request: Request) -> RedirectResponse:
     url = install_url()
     if not url:
         return RedirectResponse(
-            f"{frontend}/settings?install=error&reason=install_url_unavailable",
+            f"{frontend}/app/settings?install=error&reason=install_url_unavailable",
             status_code=302,
         )
     # Prefer logged-in users; still allow anonymous click-through to GitHub.
@@ -132,7 +148,7 @@ def github_installed(
     if not session:
         # Bounce through login, then land on settings.
         return RedirectResponse(
-            f"{frontend}/login?next=/settings&reason=install_needs_login",
+            f"{frontend}/login?next=/app/settings&reason=install_needs_login",
             status_code=302,
         )
 
@@ -151,7 +167,7 @@ def github_installed(
         params = {"installed": "0", "reason": "no_installation"}
 
     response = RedirectResponse(
-        f"{frontend}/settings?{urlencode(params)}",
+        f"{frontend}/app/settings?{urlencode(params)}",
         status_code=302,
     )
     set_session_cookie(response, session)

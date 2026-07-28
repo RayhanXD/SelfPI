@@ -96,6 +96,41 @@ def clear_oauth_state_cookie(response: Response) -> None:
     )
 
 
+def sanitize_post_login_path(next_path: str | None) -> str:
+    """Allow only same-origin relative paths (default /app)."""
+    if not next_path:
+        return "/app"
+    path = next_path.strip().strip('"').strip("'")
+    if not path.startswith("/") or path.startswith("//") or "\\" in path:
+        return "/app"
+    if path.startswith("/auth/"):
+        return "/app"
+    return path
+
+
+def set_oauth_next_cookie(response: Response, next_path: str) -> None:
+    secure, samesite = cookie_flags()
+    response.set_cookie(
+        "selfpi_oauth_next",
+        sanitize_post_login_path(next_path),
+        httponly=True,
+        samesite=samesite,
+        secure=secure,
+        max_age=600,
+        path="/",
+    )
+
+
+def clear_oauth_next_cookie(response: Response) -> None:
+    secure, samesite = cookie_flags()
+    response.delete_cookie(
+        "selfpi_oauth_next",
+        path="/",
+        secure=secure,
+        samesite=samesite,
+    )
+
+
 def session_user_public(session: dict[str, Any] | None) -> dict[str, Any] | None:
     if not session:
         return None

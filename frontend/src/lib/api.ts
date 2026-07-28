@@ -24,6 +24,27 @@ export function resolveApiUrl(pathOrUrl: string): string {
   return `${apiOrigin()}${path}`;
 }
 
+/** Safe post-login SPA path (same-origin relative only). */
+export function sanitizeNextPath(next: string | null | undefined, fallback = "/app"): string {
+  const path = (next ?? "").trim();
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) {
+    return fallback;
+  }
+  if (path.startsWith("/auth/")) return fallback;
+  return path;
+}
+
+/**
+ * Full browser URL for Login with GitHub.
+ * After GitHub auth the API redirects to `/auth/callback` then the SPA lands on `next`.
+ */
+export function githubLoginUrl(next: string = "/app"): string {
+  const dest = sanitizeNextPath(next, "/app");
+  const base = resolveApiUrl("/auth/github/login");
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}next=${encodeURIComponent(dest)}`;
+}
+
 const DEFAULT_TIMEOUT_MS = 12_000;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

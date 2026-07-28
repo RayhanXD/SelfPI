@@ -104,3 +104,38 @@ def test_logout_clears_cookie(monkeypatch):
     resp = http.post("/auth/logout")
     assert resp.status_code == 200
     assert resp.json()["logged_out"] is True
+
+
+def test_github_login_stores_next_and_redirects(monkeypatch):
+    from api.auth.session import sanitize_post_login_path
+    from api.main import app
+    from db.settings import get_settings
+
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "Iv1.client")
+    monkeypatch.setenv("GITHUB_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("FRONTEND_URL", "http://localhost:5173")
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        "db.settings.Settings.oauth_ready",
+        property(lambda self: True),
+    )
+
+    http = TestClient(app, follow_redirects=False)
+    resp = http.get("/auth/github/login?next=/app/settings")
+    assert resp.status_code == 302
+    assert "github.com/login/oauth/authorize" in resp.headers["location"]
+    set_cookie = resp.headers.get("set-cookie") or ""
+    # Starlette may emit multiple Set-Cookie; TestClient joins or keeps jar.
+    assert "selfpi_oauth_state=" in (set_cookie + str(http.cookies))
+    raw_next = http.cookies.get("selfpi_oauth_next")
+    assert sanitize_post_login_path(raw_next) == "/app/settings"
+
+
+def test_sanitize_rejects_open_redirect():
+    from api.auth.session import sanitize_post_login_path
+
+    assert sanitize_post_login_path("/app/changes") == "/app/changes"
+    assert sanitize_post_login_path("https://evil.example/") == "/app"
+    assert sanitize_post_login_path("//evil.example") == "/app"
+    assert sanitize_post_login_path("/auth/callback") == "/app"
+    assert sanitize_post_login_path('"/app/settings"') == "/app/settings"

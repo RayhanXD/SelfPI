@@ -182,10 +182,10 @@ GitHub App **user-to-server OAuth**. Requires `GITHUB_CLIENT_ID`, `GITHUB_CLIENT
 For public onboarding set the App **Setup URL** to `{API}/auth/github/installed` so Install App returns with `installation_id`.
 
 ### `GET /auth/github/login`
-Redirects the browser to GitHub’s authorize URL. Sets a short-lived `selfpi_oauth_state` cookie.
+Redirects the browser to GitHub’s authorize URL. Optional query `next` (relative SPA path, default `/app`) is stored in a short-lived `selfpi_oauth_next` cookie and returned after auth. Also sets `selfpi_oauth_state`.
 
 ### `GET /auth/github/callback`
-Exchanges `code` for a user token, loads `/user`, discovers this App’s installation via `GET /user/installations`, sets httponly `selfpi_session` cookie, redirects to `{FRONTEND_URL}/auth/callback?auth=ok` (or `auth=error`).
+Exchanges `code` for a user token, loads `/user`, discovers this App’s installation via `GET /user/installations`, sets httponly `selfpi_session` cookie, redirects to `{FRONTEND_URL}/auth/callback?auth=ok&next=…` (or `auth=error`). The SPA reloads the session and navigates to `next` (default `/app`).
 
 In production (`ENV=production` or HTTPS `FRONTEND_URL`), session and OAuth state cookies use `Secure` + `SameSite=None` so a cross-origin Vercel frontend can call the API with `credentials: include`. Locally they use `SameSite=Lax` without `Secure`.
 
@@ -193,7 +193,7 @@ In production (`ENV=production` or HTTPS `FRONTEND_URL`), session and OAuth stat
 Redirects to `https://github.com/apps/{slug}/installations/new` (slug from `GITHUB_APP_SLUG` or `GET /app`).
 
 ### `GET /auth/github/installed`
-GitHub Setup URL target after Install / Update (`?installation_id=&setup_action=`). Stores `installation_id` on the session and redirects to `{FRONTEND_URL}/settings?installed=1`.
+GitHub Setup URL target after Install / Update (`?installation_id=&setup_action=`). Stores `installation_id` on the session and redirects to `{FRONTEND_URL}/app/settings?installed=1`.
 
 ### `POST /auth/github/sync-installation`
 Re-runs installation discovery for the signed-in user and refreshes the session cookie.

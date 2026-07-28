@@ -9,7 +9,7 @@ import type { InstallationRepo, SettingsResponse } from "../types/api";
 
 export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { reload: reloadAuth, logout } = useAuth();
+  const { reload: reloadAuth, logout, loginHrefFor } = useAuth();
   const {
     data: apis,
     error: apisError,
@@ -118,8 +118,8 @@ export function SettingsPage() {
       !settings.app_installed
   );
   const installHref = resolveApiUrl(settings.install_url || "/auth/github/install");
-  const loginHref = settings.login_url
-    ? resolveApiUrl(settings.login_url)
+  const loginHref = settings.oauth_configured
+    ? loginHrefFor("/app/settings")
     : null;
 
   const rows: Array<{ label: string; value: string }> = [

@@ -1,15 +1,10 @@
+import { useEffect, useRef } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { BrandMark } from "../components/BrandMark";
+import { GitHubMark } from "../components/GitHubMark";
 import { HORIZON, HORIZON_GLOW } from "../lib/accents";
+import { sanitizeNextPath } from "../lib/api";
 import { useAuth } from "../lib/auth";
-
-function GitHubMark({ className = "" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
-    </svg>
-  );
-}
 
 const ERROR_COPY: Record<string, string> = {
   oauth_not_configured: "GitHub OAuth isn’t configured on this server yet.",
@@ -17,20 +12,33 @@ const ERROR_COPY: Record<string, string> = {
   missing_code: "GitHub didn’t return an auth code.",
   bad_state: "Login session expired. Start again.",
   token_exchange_failed: "Couldn’t exchange the GitHub code for a session.",
+  install_needs_login: "Sign in with GitHub to finish installing the App.",
 };
 
 export function LoginPage() {
-  const { loading, authenticated, oauthConfigured, loginUrl } = useAuth();
+  const { loading, authenticated, oauthConfigured, loginHrefFor } = useAuth();
   const [params] = useSearchParams();
-  const next = params.get("next") || "/app";
+  const next = sanitizeNextPath(params.get("next"), "/app");
   const errorKey = params.get("error") || params.get("reason") || "";
   const errorMsg = errorKey
     ? ERROR_COPY[errorKey] ?? `Sign-in failed (${errorKey}).`
     : null;
+  const loginHref = loginHrefFor(next);
+  const autoStarted = useRef(false);
+
+  // No error → start GitHub OAuth immediately (one click from landing / RequireAuth).
+  useEffect(() => {
+    if (loading || authenticated || errorMsg || !oauthConfigured) return;
+    if (autoStarted.current) return;
+    autoStarted.current = true;
+    window.location.assign(loginHref);
+  }, [loading, authenticated, errorMsg, oauthConfigured, loginHref]);
 
   if (!loading && authenticated) {
-    return <Navigate to={next.startsWith("/") ? next : "/app"} replace />;
+    return <Navigate to={next} replace />;
   }
+
+  const startingOAuth = !loading && !errorMsg && oauthConfigured;
 
   return (
     <div className="relative flex min-h-full flex-col bg-[#050505]">
@@ -72,11 +80,13 @@ export function LoginPage() {
               </p>
             ) : null}
 
-            {loading ? (
-              <p className="text-center text-[13px] text-[#8a8a8a]">Checking session…</p>
-            ) : oauthConfigured || loginUrl ? (
+            {loading || startingOAuth ? (
+              <p className="text-center text-[13px] text-[#8a8a8a]">
+                {startingOAuth ? "Redirecting to GitHub…" : "Checking session…"}
+              </p>
+            ) : oauthConfigured ? (
               <a
-                href={loginUrl ?? "/auth/github/login"}
+                href={loginHref}
                 className="inline-flex h-11 w-full items-center justify-center gap-2.5 rounded-lg bg-white text-[14px] font-medium text-[#0a0a0a] transition-[background-color,transform] duration-150 hover:bg-[#ebebeb] active:scale-[0.98]"
               >
                 <GitHubMark className="size-4" />

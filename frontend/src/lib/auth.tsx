@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api, resolveApiUrl } from "./api";
+import { api, githubLoginUrl } from "./api";
 import type { AuthUser, MeResponse } from "../types/api";
 
 interface AuthState {
@@ -16,8 +16,11 @@ interface AuthState {
   oauthConfigured: boolean;
   loginRequired: boolean;
   user: AuthUser | null;
+  /** Default login URL → lands on /app after OAuth. */
   loginUrl: string | null;
-  reload: () => Promise<void>;
+  /** Login URL that returns to a specific SPA path after OAuth. */
+  loginHrefFor: (next?: string) => string;
+  reload: () => Promise<MeResponse | null>;
   logout: () => Promise<void>;
 }
 
@@ -31,14 +34,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const data = await api.getMe();
       setMe(data);
+      return data;
     } catch {
-      setMe({
+      const fallback: MeResponse = {
         authenticated: false,
         oauth_configured: false,
         login_required: false,
         user: null,
         login_url: null,
-      });
+      };
+      setMe(fallback);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -53,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await reload();
   }, [reload]);
 
+  const loginHrefFor = useCallback((next: string = "/app") => githubLoginUrl(next), []);
+
   const value = useMemo<AuthState>(
     () => ({
       loading,
@@ -60,11 +68,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       oauthConfigured: Boolean(me?.oauth_configured),
       loginRequired: Boolean(me?.login_required),
       user: me?.user ?? null,
-      loginUrl: resolveApiUrl(me?.login_url ?? "/auth/github/login"),
+      loginUrl: me?.oauth_configured || me?.login_url ? githubLoginUrl("/app") : null,
+      loginHrefFor,
       reload,
       logout,
     }),
-    [loading, me, reload, logout],
+    [loading, me, reload, logout, loginHrefFor],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
