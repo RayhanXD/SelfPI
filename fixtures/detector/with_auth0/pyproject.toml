@@ -1,0 +1,5 @@
+[project]
+name = "demo"
+dependencies = [
+  "auth0-python>=4.0",
+]

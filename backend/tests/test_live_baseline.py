@@ -177,6 +177,7 @@ def test_second_identical_poll_is_noop(monkeypatch):
     assert second["new_version"] is None
     assert second["changes_detected"] == 0
     assert second["baseline"] is False
+    assert second["unchanged"] is True
     assert spec_versions().count_documents({"api_id": "stripe"}) == 1
     assert changes().count_documents({"api_id": "stripe"}) == 0
 
@@ -257,3 +258,4 @@ def test_check_endpoint_exposes_baseline(monkeypatch):
     assert body["new_version"] == "2026-07-01"
     assert body["changes_detected"] == 0
     assert body["baseline"] is True
+    assert body["unchanged"] is False

@@ -70,9 +70,20 @@ def test_ensure_openai_from_catalog():
     assert "openai-openapi" in doc["spec_url"]
 
 
-def test_ensure_anthropic_unwatchable_skipped():
-    assert ensure_watched_api("anthropic", repo="acme/ai") is None
-    assert apis().find_one({"_id": "anthropic"}) is None
+def test_ensure_anthropic_from_catalog():
+    ensured = ensure_watched_api("anthropic", repo="acme/ai", repo_path="/tmp/ai")
+    assert ensured == "anthropic"
+    doc = apis().find_one({"_id": "anthropic"})
+    assert doc["name"] == "Anthropic"
+    assert doc["mode"] == "live"
+    assert "anthropic-openapi-spec" in doc["spec_url"]
+
+
+def test_ensure_unwatchable_skipped():
+    """Catalog hits without a public OpenAPI URL are not auto-watched."""
+    assert ensure_watched_api("braintree", repo="acme/pay") is None
+    assert apis().find_one({"_id": "braintree"}) is None
+    assert ensure_watched_api("aws", repo="acme/infra") is None
 
 
 def test_ensure_stripe_updates_existing_does_not_duplicate():
@@ -142,6 +153,46 @@ def test_detect_and_ensure_multi_ensures_all_watchable():
     assert set(result["ensured"]) == {"openai", "stripe", "twilio"}
     assert apis().find_one({"_id": "openai"})["repo"] == "acme/multi"
     assert apis().find_one({"_id": "twilio"})["repo"] == "acme/multi"
+
+
+def test_detect_and_ensure_ai_stack():
+    result = detect_and_ensure(
+        repo="acme/llm",
+        repo_path=FIXTURES / "with_ai_stack",
+    )
+    assert result["detected_apis"] == ["anthropic", "cohere", "openai"]
+    assert set(result["ensured"]) == {"anthropic", "cohere", "openai"}
+    assert result["unwatchable"] == []
+
+
+def test_detect_and_ensure_github_fixture():
+    result = detect_and_ensure(
+        repo="acme/tools",
+        repo_path=FIXTURES / "with_github",
+    )
+    assert result["detected_apis"] == ["github"]
+    assert result["ensured"] == ["github"]
+    doc = apis().find_one({"_id": "github"})
+    assert doc["repo"] == "acme/tools"
+    assert doc["source"] == "detected"
+
+
+def test_detect_and_ensure_ts_raygent_stack():
+    """TS repos using raw GitHub fetch + NIM + LangChain must surface."""
+    result = detect_and_ensure(
+        repo="RayhanXD/raygent",
+        repo_path=FIXTURES / "with_ts_raygent",
+        clone=False,
+    )
+    assert result["detected_apis"] == ["github", "langchain", "nvidia"]
+    assert result["ensured"] == ["github", "langchain", "nvidia"]
+    assert result["unwatchable"] == []
+    doc = apis().find_one({"_id": "github"})
+    assert doc is not None
+    assert doc["repo"] == "RayhanXD/raygent"
+    assert "typescript" in doc.get("languages", [])
+    assert apis().find_one({"_id": "langchain"})["source"] == "detected"
+    assert apis().find_one({"_id": "nvidia"})["spec_url"]
 
 
 def test_detect_and_ensure_detaches_undetected():

@@ -15,7 +15,19 @@ STRIPE: dict[tuple[str, ...], str] = {
     ("PaymentIntent", "create"): "createPaymentIntent",
 }
 
+# OpenAI — legacy 0.x SDK surfaces (WishBot-style) + common v1 names.
+OPENAI: dict[tuple[str, ...], str] = {
+    ("Audio", "transcribe"): "createTranscription",
+    ("Audio", "translate"): "createTranslation",
+    ("ChatCompletion", "create"): "createChatCompletion",
+    ("Completion", "create"): "createCompletion",
+    ("Image", "create"): "createImage",
+    ("Embedding", "create"): "createEmbedding",
+    ("Embeddings", "create"): "createEmbedding",
+}
+
 # Merge all vendor maps. Later vendors append here.
 SURFACE_TO_OPERATION: dict[tuple[str, ...], str] = {
     **STRIPE,
+    **OPENAI,
 }

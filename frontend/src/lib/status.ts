@@ -1,9 +1,14 @@
 import type { ApiStatus, ChangeStatus, SourceLayer } from "../types/api";
 
-export function apiStatusLabel(status: ApiStatus): string {
+/** Prefer passing last_checked — unchecked APIs must not read as healthy. */
+export function apiStatusLabel(
+  status: ApiStatus,
+  lastChecked?: string | null,
+): string {
   switch (status) {
     case "up_to_date":
-      return "Up to date";
+      if (!lastChecked) return "Not checked";
+      return "No open breaks";
     case "change_detected":
       return "Change detected";
     case "breaking_change_unhandled":
@@ -11,9 +16,13 @@ export function apiStatusLabel(status: ApiStatus): string {
   }
 }
 
-export function apiStatusTone(status: ApiStatus): "ok" | "warn" | "danger" {
+export function apiStatusTone(
+  status: ApiStatus,
+  lastChecked?: string | null,
+): "ok" | "warn" | "danger" | "muted" {
   switch (status) {
     case "up_to_date":
+      if (!lastChecked) return "muted";
       return "ok";
     case "change_detected":
       return "warn";

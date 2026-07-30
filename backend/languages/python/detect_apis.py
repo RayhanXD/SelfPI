@@ -114,7 +114,7 @@ def _iter_dep_files(root: Path):
 
 
 def detect_entry(repo_path: str | Path, entry: ApiCatalogEntry) -> bool:
-    """True if the tree uses this catalog entry (import and/or dependency)."""
+    """True if the tree uses this catalog entry (import, dependency, or HTTP host)."""
     root = Path(repo_path)
     if not root.is_dir():
         return False
@@ -124,10 +124,18 @@ def detect_entry(repo_path: str | Path, entry: ApiCatalogEntry) -> bool:
             if package_in_dep_file(dep, package):
                 return True
 
+    hosts = entry.http_hosts
+    imports = entry.python_imports
+    if not imports and not hosts:
+        return False
+
     for py in _iter_py_files(root):
         source = _read_text(py)
-        for module in entry.python_imports:
+        for module in imports:
             if module_in_source(source, module):
+                return True
+        for host in hosts:
+            if host in source:
                 return True
 
     return False

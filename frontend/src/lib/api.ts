@@ -67,17 +67,16 @@ export function setSessionToken(token: string | null): void {
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: RequestInit & { timeoutMs?: number },
+): Promise<T> {
   const controller = new AbortController();
   const timeoutMs =
-    typeof (init as { timeoutMs?: number } | undefined)?.timeoutMs === "number"
-      ? (init as { timeoutMs?: number }).timeoutMs!
-      : DEFAULT_TIMEOUT_MS;
+    typeof init?.timeoutMs === "number" ? init.timeoutMs : DEFAULT_TIMEOUT_MS;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const { timeoutMs: _ignored, signal: userSignal, ...rest } = (init ?? {}) as RequestInit & {
-      timeoutMs?: number;
-    };
+    const { timeoutMs: _ignored, signal: userSignal, ...rest } = init ?? {};
     if (userSignal) {
       if (userSignal.aborted) controller.abort();
       else userSignal.addEventListener("abort", () => controller.abort(), { once: true });
@@ -134,6 +133,8 @@ export const api = {
   connectRepo: (full_name: string, repo_path?: string | null) =>
     request<ConnectedRepo>("/repos/connect", {
       method: "POST",
+      // Connect runs checkout + API detection; allow longer than default.
+      timeoutMs: 90_000,
       body: JSON.stringify({
         full_name,
         ...(repo_path != null ? { repo_path } : {}),
@@ -144,10 +145,13 @@ export const api = {
   detectApis: () =>
     request<DetectApisResponse>("/repos/connected/detect", { method: "POST" }),
   checkApi: (id: string) =>
-    request<{ checked: boolean; new_version: string | null; changes_detected: number }>(
-      `/apis/${id}/check`,
-      { method: "POST" },
-    ),
+    request<{
+      checked: boolean;
+      new_version: string | null;
+      changes_detected: number;
+      baseline?: boolean;
+      unchanged?: boolean;
+    }>(`/apis/${id}/check`, { method: "POST" }),
   pushSpecVersion: (id: string, version: string, spec: object) =>
     request<{ version: string; changes_detected: number }>(`/apis/${id}/spec-versions`, {
       method: "POST",

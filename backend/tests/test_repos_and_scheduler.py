@@ -67,6 +67,76 @@ def test_connect_repo_persists_without_stamping_all_apis():
     assert data["watch_interval_seconds"] == 300
 
 
+def test_switch_repo_updates_connected_and_settings(monkeypatch):
+    """POST /repos/connect with a new full_name switches the workspace binding."""
+    from api.main import app
+
+    monkeypatch.setattr(
+        "api.routes.repos._run_detection",
+        lambda doc, *, installation_id=None: {
+            "detected_apis": [],
+            "ensured": [],
+            "unwatchable": [],
+            "repo_path": doc.get("repo_path"),
+        },
+    )
+
+    apis().insert_many(
+        [
+            {
+                "_id": "stripe-a",
+                "name": "Stripe A",
+                "mode": "live",
+                "source": "detected",
+                "spec_url": "https://example.com/a.json",
+                "repo": "acme/alpha",
+                "languages": ["python"],
+                "status": "up_to_date",
+                "open_change_count": 0,
+            },
+            {
+                "_id": "stripe-b",
+                "name": "Stripe B",
+                "mode": "live",
+                "source": "detected",
+                "spec_url": "https://example.com/b.json",
+                "repo": "acme/beta",
+                "languages": ["python"],
+                "status": "up_to_date",
+                "open_change_count": 1,
+            },
+        ]
+    )
+
+    http = TestClient(app)
+    first = http.post(
+        "/repos/connect",
+        json={"full_name": "acme/alpha", "repo_path": "/tmp/alpha"},
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["full_name"] == "acme/alpha"
+    assert http.get("/settings").json()["connected_repo"] == "acme/alpha"
+    assert http.get("/repos/connected").json()["full_name"] == "acme/alpha"
+
+    workspace_a = http.get("/apis")
+    assert workspace_a.status_code == 200
+    assert {a["id"] for a in workspace_a.json()} == {"stripe-a"}
+
+    second = http.post(
+        "/repos/connect",
+        json={"full_name": "acme/beta", "repo_path": "/tmp/beta"},
+    )
+    assert second.status_code == 200, second.text
+    assert second.json()["full_name"] == "acme/beta"
+    assert get_connected_repo()["full_name"] == "acme/beta"
+    assert http.get("/settings").json()["connected_repo"] == "acme/beta"
+    assert http.get("/repos/connected").json()["full_name"] == "acme/beta"
+
+    workspace_b = http.get("/apis")
+    assert workspace_b.status_code == 200
+    assert {a["id"] for a in workspace_b.json()} == {"stripe-b"}
+
+
 def test_connect_rejects_bad_full_name():
     from api.main import app
 

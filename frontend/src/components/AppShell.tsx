@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { api } from "../lib/api";
+import { WorkspaceProvider, useWorkspace } from "../lib/workspace";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -39,10 +40,10 @@ function pageMeta(pathname: string) {
   return meta[pathname] ?? { title: "SelfPI" };
 }
 
-export function AppShell() {
+function AppShellInner() {
   const { pathname } = useLocation();
   const { title, description } = pageMeta(pathname);
-  const [repo, setRepo] = useState<string | null>(null);
+  const { connectedRepo, revision } = useWorkspace();
   const [inboxCount, setInboxCount] = useState(0);
   const isDetail =
     pathname.startsWith("/app/changes/") &&
@@ -50,20 +51,17 @@ export function AppShell() {
     !pathname.includes("/explorer");
 
   useEffect(() => {
-    Promise.all([api.listApis(), api.getSettings()])
-      .then(([apis, settings]) => {
-        setRepo(settings.connected_repo ?? apis[0]?.repo ?? null);
+    api
+      .listApis()
+      .then((apis) => {
         setInboxCount(apis.reduce((n, a) => n + (a.open_change_count ?? 0), 0));
       })
-      .catch(() => {
-        setRepo(null);
-        setInboxCount(0);
-      });
-  }, [pathname]);
+      .catch(() => setInboxCount(0));
+  }, [pathname, revision]);
 
   return (
     <div className="flex h-full min-h-0 bg-[#050505]">
-      <Sidebar repo={repo} inboxCount={inboxCount} />
+      <Sidebar repo={connectedRepo} inboxCount={inboxCount} />
       <div className="relative flex min-w-0 flex-1 flex-col">
         <div
           aria-hidden
@@ -78,7 +76,7 @@ export function AppShell() {
           <div
             className={[
               "mx-auto w-full",
-              isDetail ? "max-w-none px-0 py-0" : "max-w-[1120px] px-8 py-7",
+              isDetail ? "max-w-none px-0 py-0" : "max-w-[1120px] px-4 py-7 sm:px-8",
             ].join(" ")}
           >
             <Outlet />
@@ -86,5 +84,13 @@ export function AppShell() {
         </main>
       </div>
     </div>
+  );
+}
+
+export function AppShell() {
+  return (
+    <WorkspaceProvider>
+      <AppShellInner />
+    </WorkspaceProvider>
   );
 }

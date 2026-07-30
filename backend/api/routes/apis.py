@@ -27,6 +27,7 @@ def _doc_to_summary(doc: dict) -> ApiSummary:
         repo=doc.get("repo"),
         spec_url=doc.get("spec_url"),
         mode=doc.get("mode"),
+        source=doc.get("source"),
     )
 
 
@@ -93,4 +94,5 @@ def check_api(api_id: str) -> CheckApiResponse:
         new_version=result.get("new_version"),
         changes_detected=int(result.get("changes_detected") or 0),
         baseline=bool(result.get("baseline")),
+        unchanged=bool(result.get("unchanged")),
     )

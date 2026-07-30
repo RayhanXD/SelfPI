@@ -27,6 +27,7 @@ def ensure_watched_api(
     *,
     repo: str,
     repo_path: str | None = None,
+    languages: list[str] | None = None,
 ) -> str | None:
     """Create or update a live watched API from the catalog.
 
@@ -39,11 +40,12 @@ def ensure_watched_api(
     if entry is None or not entry.watchable:
         return None
 
+    langs = languages or ["python"]
     fields: dict[str, Any] = {
         "name": entry.name,
         "mode": "live",
         "spec_url": entry.spec_url,
-        "languages": ["python"],
+        "languages": langs,
         "repo": repo,
         "source": "detected",
     }
@@ -110,11 +112,15 @@ def ensure_watched_apis(
     *,
     repo: str,
     repo_path: str | None = None,
+    languages_by_api: dict[str, list[str]] | None = None,
 ) -> list[str]:
     """For each detected api id, ensure a live watched doc. Returns ensured ids."""
     ensured: list[str] = []
     for api_id in detected:
-        got = ensure_watched_api(api_id, repo=repo, repo_path=repo_path)
+        langs = (languages_by_api or {}).get(api_id)
+        got = ensure_watched_api(
+            api_id, repo=repo, repo_path=repo_path, languages=langs
+        )
         if got:
             ensured.append(got)
     detach_undetected(repo=repo, detected=detected)

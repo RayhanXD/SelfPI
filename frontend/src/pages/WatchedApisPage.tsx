@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import { DEMO_BUMP_SPEC } from "../lib/demo";
 import { apiStatusLabel, apiStatusTone } from "../lib/status";
 import { useAsync } from "../lib/useAsync";
+import { useWorkspace } from "../lib/workspace";
 
 function isDemoApi(a: { id: string; mode?: string | null }) {
   return a.mode === "demo" || a.id === "stripe-demo";
@@ -18,7 +19,11 @@ function isLiveApi(a: { id: string; mode?: string | null }) {
 
 export function WatchedApisPage() {
   const navigate = useNavigate();
-  const { data: apis, error, loading, reload } = useAsync(() => api.listApis(), []);
+  const { revision, connectedRepo } = useWorkspace();
+  const { data: apis, error, loading, reload } = useAsync(
+    () => api.listApis(),
+    [revision],
+  );
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -32,8 +37,16 @@ export function WatchedApisPage() {
       reload();
       if (result.changes_detected > 0) {
         navigate(`/app/changes?api_id=${id}`);
+      } else if (result.baseline) {
+        setNotice(
+          "Stored the current upstream OpenAPI as a baseline. SelfPI also audits legacy SDK pins in the repo (e.g. openai 0.x).",
+        );
+      } else if (result.unchanged) {
+        setNotice(
+          "Upstream OpenAPI unchanged. No legacy SDK drift detected in the checkout either.",
+        );
       } else {
-        setNotice("Check complete — no new breaking changes.");
+        setNotice("Check complete — no breaking changes in the upstream diff.");
       }
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Check failed");
@@ -74,8 +87,16 @@ export function WatchedApisPage() {
     return (
       <div className="rounded-2xl border border-white/[0.07] px-5 py-10">
         <EmptyState
-          message="No APIs watched yet."
-          hint="Connect a repository in Settings to detect APIs."
+          message={
+            connectedRepo
+              ? "No APIs found in this repo yet."
+              : "No APIs watched yet."
+          }
+          hint={
+            connectedRepo
+              ? `SelfPI scans ${connectedRepo} for known SDKs in Python and TypeScript/JS (Stripe, OpenAI, GitHub, Anthropic, …), including raw fetch hosts. Re-detect from Settings after adding dependencies.`
+              : "Connect a repository in Settings to detect third-party APIs it uses."
+          }
         />
       </div>
     );
@@ -84,10 +105,18 @@ export function WatchedApisPage() {
   return (
     <div className="space-y-4">
       <p className="text-[12px] leading-relaxed text-[#6e6e6e]">
+        {connectedRepo ? (
+          <>
+            APIs detected in{" "}
+            <span className="font-mono text-[#8a8a8a]">{connectedRepo}</span>
+            .{" "}
+          </>
+        ) : null}
+        <span className="font-mono text-[#8a8a8a]">Check now</span> polls the
+        publisher’s live OpenAPI URL for breaking changes (not the SDK version
+        pinned in your repo).{" "}
         <span className="font-mono text-[#8a8a8a]">Bump spec</span> is demo-only
-        (source → payment_method).{" "}
-        <span className="font-mono text-[#8a8a8a]">Check now</span> polls the live
-        OpenAPI. After the first successful bump, run{" "}
+        (source → payment_method); after the first bump, run{" "}
         <span className="font-mono text-[#8a8a8a]">make reset</span> to bump again.
       </p>
       {notice ? <Flash tone="info">{notice}</Flash> : null}
@@ -111,12 +140,16 @@ export function WatchedApisPage() {
                   {a.name}
                 </Link>
                 <StatusPill
-                  label={apiStatusLabel(a.status)}
-                  tone={apiStatusTone(a.status)}
+                  label={apiStatusLabel(a.status, a.last_checked)}
+                  tone={apiStatusTone(a.status, a.last_checked)}
                 />
                 {isDemoApi(a) ? (
                   <span className="rounded-md border border-white/[0.08] px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.08em] text-[#5c5c5c]">
                     Demo
+                  </span>
+                ) : a.source === "detected" ? (
+                  <span className="rounded-md border border-white/[0.08] px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.08em] text-[#5c5c5c]">
+                    In repo
                   </span>
                 ) : null}
               </div>

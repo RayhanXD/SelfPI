@@ -14,13 +14,23 @@ from detector.checkout import REPO_ROOT, ensure_github_checkout
 from detector.ensure import ensure_watched_apis
 from detector.resolve import resolve_scan_path, stamp_repo_path
 from languages.python.detect_apis import detect_apis as detect_python_apis
+from languages.typescript.detect_apis import detect_apis as detect_typescript_apis
 
 logger = logging.getLogger("selfpi.detector")
 
 
 def detect_apis(repo_path: str | Path) -> list[str]:
-    """Detect APIs used under repo_path. Pure over the filesystem; no DB/network."""
-    return detect_python_apis(repo_path)
+    """Detect APIs used under repo_path (Python + TypeScript/JS). Pure over FS."""
+    found = set(detect_python_apis(repo_path)) | set(detect_typescript_apis(repo_path))
+    return sorted(found)
+
+
+def detect_apis_by_language(repo_path: str | Path) -> dict[str, list[str]]:
+    """Per-language detection map — used to stamp watched API `languages`."""
+    return {
+        "python": detect_python_apis(repo_path),
+        "typescript": detect_typescript_apis(repo_path),
+    }
 
 
 def detect_and_ensure(
@@ -52,7 +62,15 @@ def detect_and_ensure(
             clone_error = str(exc)
             logger.warning("checkout failed for %s: %s", repo, exc)
 
-    detected = detect_apis(scan) if scan is not None else []
+    by_lang = detect_apis_by_language(scan) if scan is not None else {}
+    detected = sorted({api_id for ids in by_lang.values() for api_id in ids})
+    languages_by_api: dict[str, list[str]] = {}
+    for lang, ids in by_lang.items():
+        for api_id in ids:
+            languages_by_api.setdefault(api_id, [])
+            if lang not in languages_by_api[api_id]:
+                languages_by_api[api_id].append(lang)
+
     stamp = stamp_repo_path(explicit=repo_path, connected=connected, scan=scan)
     # Prefer the resolved scan path (clone) as the durable workspace path.
     if scan is not None:
@@ -62,6 +80,7 @@ def detect_and_ensure(
         detected,
         repo=repo,
         repo_path=stamp,
+        languages_by_api=languages_by_api,
     )
 
     unwatchable = [

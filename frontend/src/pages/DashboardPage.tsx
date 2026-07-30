@@ -17,26 +17,28 @@ import {
   changeStatusTone,
 } from "../lib/status";
 import { useAsync } from "../lib/useAsync";
+import { useWorkspace } from "../lib/workspace";
 import type { ChangeStatus } from "../types/api";
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { revision } = useWorkspace();
   const {
     data: apis,
     error: apisError,
     loading: apisLoading,
     reload: reloadApis,
-  } = useAsync(() => api.listApis(), []);
+  } = useAsync(() => api.listApis(), [revision]);
   const {
     data: changes,
     error: changesError,
     loading: changesLoading,
-  } = useAsync(() => api.listChanges(), []);
+  } = useAsync(() => api.listChanges(), [revision]);
   const {
     data: settings,
     error: settingsError,
     loading: settingsLoading,
-  } = useAsync(() => api.getSettings(), []);
+  } = useAsync(() => api.getSettings(), [revision]);
 
   const [busyCheck, setBusyCheck] = useState(false);
   const [checkMsg, setCheckMsg] = useState<string | null>(null);
@@ -50,7 +52,12 @@ export function DashboardPage() {
     const needsAttention = list.filter(
       (a) => a.status === "breaking_change_unhandled" || a.open_change_count > 0,
     ).length;
-    const upToDate = list.filter((a) => a.status === "up_to_date").length;
+    const upToDate = list.filter(
+      (a) => a.status === "up_to_date" && a.last_checked,
+    ).length;
+    const unchecked = list.filter(
+      (a) => a.status === "up_to_date" && !a.last_checked,
+    ).length;
     const openPrs = items.filter((c) => c.status === "pr_open").length;
     const actionable = items.filter(
       (c) => c.status === "detected" || c.status === "scanning" || c.status === "pr_open",
@@ -59,6 +66,7 @@ export function DashboardPage() {
       watched: list.length,
       needsAttention,
       upToDate,
+      unchecked,
       openPrs,
       actionable,
       recent: items.slice(0, 5),
@@ -80,7 +88,7 @@ export function DashboardPage() {
     },
     {
       done: (apis?.length ?? 0) > 0,
-      label: "At least one API watched",
+      label: "APIs detected in the repo",
       to: "/app/apis",
     },
   ];
@@ -106,7 +114,9 @@ export function DashboardPage() {
       if (total > 0) {
         navigate("/app/changes");
       } else {
-        setCheckMsg("All live specs checked — no new breaking changes.");
+        setCheckMsg(
+          "Live OpenAPI URLs unchanged or baselined — no new publisher breaking changes. (This does not audit your SDK pin.)",
+        );
       }
     } catch (e) {
       setCheckMsg(e instanceof Error ? e.message : "Check failed");
@@ -133,8 +143,8 @@ export function DashboardPage() {
           </h2>
           <p className="mt-1.5 max-w-xl text-[13px] text-[#8a8a8a]">
             {connectedRepo
-              ? `Monitoring specs for ${connectedRepo}. Review inbox items before they hit production.`
-              : "Connect a repository in Settings to open fix PRs automatically."}
+              ? `APIs found in ${connectedRepo}. Specs are watched for this repo only — review inbox items before they hit production.`
+              : "Connect a repository to detect third-party APIs it uses and open fix PRs automatically."}
           </p>
           {checkMsg ? (
             <p className="mt-2 text-[12px] text-[#a8a8a8]">{checkMsg}</p>
@@ -153,7 +163,11 @@ export function DashboardPage() {
 
       {/* Stats */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Watched APIs" value={stats.watched} hint="Active monitors" />
+        <StatCard
+          label="Watched APIs"
+          value={stats.watched}
+          hint={connectedRepo ? "Detected in this repo" : "Active monitors"}
+        />
         <StatCard
           label="Needs attention"
           value={stats.needsAttention}
@@ -162,9 +176,13 @@ export function DashboardPage() {
         />
         <StatCard label="Open PRs" value={stats.openPrs} hint="Awaiting review" />
         <StatCard
-          label="Up to date"
+          label="No open breaks"
           value={stats.upToDate}
-          hint="No open breaks"
+          hint={
+            stats.unchecked > 0
+              ? `${stats.unchecked} not checked yet`
+              : "Upstream diffs clear"
+          }
           tone="ok"
         />
       </div>
@@ -270,12 +288,23 @@ export function DashboardPage() {
         {/* Watched snapshot */}
         <div>
           <SectionHeader
-            title="Watched APIs"
+            title="APIs in this repo"
             action={<TextLink to="/app/apis">Manage</TextLink>}
           />
           {apis.length === 0 ? (
             <Panel className="px-5 py-8">
-              <EmptyState message="No APIs configured yet." />
+              <EmptyState
+                message={
+                  connectedRepo
+                    ? "No catalog APIs detected in this repo yet."
+                    : "No APIs found yet."
+                }
+                hint={
+                  connectedRepo
+                    ? "Connect or re-detect from Settings after adding a known SDK (Stripe, OpenAI, …)."
+                    : "Connect a repository in Settings to scan for third-party APIs."
+                }
+              />
             </Panel>
           ) : (
             <Panel>
@@ -297,8 +326,8 @@ export function DashboardPage() {
                     </div>
                   </div>
                   <StatusPill
-                    label={apiStatusLabel(a.status)}
-                    tone={apiStatusTone(a.status)}
+                    label={apiStatusLabel(a.status, a.last_checked)}
+                    tone={apiStatusTone(a.status, a.last_checked)}
                   />
                 </Link>
               ))}

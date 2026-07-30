@@ -87,11 +87,14 @@ def poll_api(api_id: str, *, open_pr: bool = False, dry_run_pr: bool = True) -> 
     spec_url = api_doc.get("spec_url")
     if not spec_url:
         apis().update_one({"_id": api_id}, {"$set": {"last_checked": _now()}})
+        audit = _run_sdk_audit(api_id, open_pr=open_pr, dry_run_pr=dry_run_pr)
         return {
             "checked": True,
             "new_version": None,
-            "changes_detected": 0,
+            "changes_detected": int(audit.get("changes_detected") or 0),
             "baseline": False,
+            "unchanged": True,
+            "sdk_audit": audit,
         }
 
     with httpx.Client(timeout=60.0, follow_redirects=True) as client:
@@ -107,11 +110,14 @@ def poll_api(api_id: str, *, open_pr: bool = False, dry_run_pr: bool = True) -> 
     )
     if latest and latest[0].get("fingerprint") == fingerprint:
         apis().update_one({"_id": api_id}, {"$set": {"last_checked": _now()}})
+        audit = _run_sdk_audit(api_id, open_pr=open_pr, dry_run_pr=dry_run_pr)
         return {
             "checked": True,
             "new_version": None,
-            "changes_detected": 0,
+            "changes_detected": int(audit.get("changes_detected") or 0),
             "baseline": False,
+            "unchanged": True,
+            "sdk_audit": audit,
         }
 
     # Avoid duplicate version ids — suffix with short hash when colliding
@@ -134,12 +140,36 @@ def poll_api(api_id: str, *, open_pr: bool = False, dry_run_pr: bool = True) -> 
         open_pr=open_pr,
         dry_run_pr=dry_run_pr,
     )
+    audit = _run_sdk_audit(api_id, open_pr=open_pr, dry_run_pr=dry_run_pr)
+    upstream = int(result["changes_detected"] or 0)
+    sdk_n = int(audit.get("changes_detected") or 0)
     return {
         "checked": True,
         "new_version": version,
-        "changes_detected": result["changes_detected"],
+        "changes_detected": upstream + sdk_n,
         "baseline": bool(result.get("baseline")),
+        "unchanged": False,
+        "sdk_audit": audit,
     }
+
+
+def _run_sdk_audit(
+    api_id: str, *, open_pr: bool, dry_run_pr: bool
+) -> dict[str, Any]:
+    try:
+        from pipeline.sdk_audit import audit_consumer_sdk
+
+        return audit_consumer_sdk(api_id, open_pr=open_pr, dry_run_pr=dry_run_pr)
+    except Exception as exc:  # never fail the upstream poll on audit errors
+        logger = __import__("logging").getLogger("selfpi.watcher")
+        logger.warning("sdk audit failed for %s: %s", api_id, exc)
+        return {
+            "audited": False,
+            "changes_detected": 0,
+            "change_ids": [],
+            "pinned_version": None,
+            "error": str(exc),
+        }
 
 
 async def poll_api_async(api_id: str, **kwargs: Any) -> dict[str, Any]:

@@ -38,6 +38,8 @@ class ApiSummary(BaseModel):
     repo: str | None = None
     spec_url: str | None = None
     mode: str | None = None  # "demo" | "live"
+    # "detected" | "manual" | "seed" — how the watched API was created
+    source: str | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -149,6 +151,8 @@ class CheckApiResponse(BaseModel):
     changes_detected: int = 0
     # True when this poll stored the first (or re-)baseline and skipped diffing.
     baseline: bool = False
+    # True when the fetched OpenAPI fingerprint matches the latest stored version.
+    unchanged: bool = False
 
 
 class SpecDiff(BaseModel):

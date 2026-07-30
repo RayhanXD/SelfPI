@@ -25,6 +25,12 @@ class ApiCatalogEntry:
     python_packages: tuple[str, ...]
     # Top-level import modules (`import X`, `from X import …`).
     python_imports: tuple[str, ...]
+    # npm package names in package.json (exact, case-sensitive as published).
+    npm_packages: tuple[str, ...] = ()
+    # JS/TS import specifiers (`from "pkg"`, `require("pkg")`, subpaths ok as prefixes).
+    js_imports: tuple[str, ...] = ()
+    # Host substrings in source (e.g. api.github.com) — recall-first raw HTTP clients.
+    http_hosts: tuple[str, ...] = ()
 
     @property
     def watchable(self) -> bool:
@@ -44,6 +50,9 @@ _CATALOG: tuple[ApiCatalogEntry, ...] = (
         spec_url=STRIPE_SPEC_URL,
         python_packages=("stripe",),
         python_imports=("stripe",),
+        npm_packages=("stripe",),
+        js_imports=("stripe",),
+        http_hosts=("api.stripe.com",),
     ),
     ApiCatalogEntry(
         id="plaid",
@@ -131,13 +140,96 @@ _CATALOG: tuple[ApiCatalogEntry, ...] = (
         ),
         python_packages=("openai",),
         python_imports=("openai",),
+        npm_packages=("openai", "@ai-sdk/openai", "@openai/agents"),
+        js_imports=("openai", "@ai-sdk/openai"),
+        http_hosts=("api.openai.com",),
     ),
     ApiCatalogEntry(
         id="anthropic",
         name="Anthropic",
-        spec_url="",
+        # Community mirror of the Stainless/Anthropic SDK OpenAPI (no official public URL yet).
+        spec_url=(
+            "https://raw.githubusercontent.com/laszukdawid/anthropic-openapi-spec/"
+            "main/hosted_spec.json"
+        ),
         python_packages=("anthropic",),
         python_imports=("anthropic",),
+        npm_packages=("@anthropic-ai/sdk", "@ai-sdk/anthropic"),
+        js_imports=("@anthropic-ai/sdk", "@ai-sdk/anthropic"),
+        http_hosts=("api.anthropic.com",),
+    ),
+    ApiCatalogEntry(
+        id="nvidia",
+        name="NVIDIA NIM",
+        # Community OpenAPI for the OpenAI-compatible chat completions surface.
+        # Filename is nvidia-nim-chat-api-openapi.yml (renamed from *-chat-completions-*).
+        spec_url=(
+            "https://raw.githubusercontent.com/api-evangelist/nvidia-nim/main/"
+            "openapi/nvidia-nim-chat-api-openapi.yml"
+        ),
+        # Hosted NIM is usually the OpenAI SDK pointed at a NVIDIA base URL, or
+        # raw HTTPS — do not fingerprint the openai package itself (too broad).
+        python_packages=(),
+        python_imports=(),
+        npm_packages=(),
+        js_imports=(),
+        http_hosts=(
+            "integrate.api.nvidia.com",
+            "api.nvcf.nvidia.com",
+            "ai.api.nvidia.com",
+        ),
+    ),
+    ApiCatalogEntry(
+        id="langchain",
+        name="LangChain",
+        # LangSmith REST is the public OpenAPI for the LangChain platform.
+        spec_url=(
+            "https://raw.githubusercontent.com/langchain-ai/langsmith-sdk/main/"
+            "openapi/openapi.yaml"
+        ),
+        python_packages=(
+            "langchain",
+            "langchain-core",
+            "langchain-community",
+            "langchain-openai",
+            "langchain-anthropic",
+            "langchain-text-splitters",
+            "langgraph",
+            "langsmith",
+            "langchain-google-genai",
+        ),
+        python_imports=(
+            "langchain",
+            "langchain_core",
+            "langchain_community",
+            "langchain_openai",
+            "langchain_anthropic",
+            "langchain_text_splitters",
+            "langgraph",
+            "langsmith",
+        ),
+        npm_packages=(
+            "@langchain/core",
+            "@langchain/langgraph",
+            "@langchain/openai",
+            "@langchain/anthropic",
+            "@langchain/community",
+            "@langchain/langsmith",
+            "langchain",
+            "langgraph",
+            "langsmith",
+        ),
+        js_imports=(
+            "@langchain/core",
+            "@langchain/langgraph",
+            "@langchain/openai",
+            "@langchain/anthropic",
+            "@langchain/community",
+            "langchain",
+            "langgraph",
+            "langsmith",
+        ),
+        http_hosts=("api.smith.langchain.com", "eu.api.smith.langchain.com"),
     ),
     ApiCatalogEntry(
         id="replicate",
@@ -145,6 +237,9 @@ _CATALOG: tuple[ApiCatalogEntry, ...] = (
         spec_url="https://api.replicate.com/openapi.json",
         python_packages=("replicate",),
         python_imports=("replicate",),
+        npm_packages=("replicate",),
+        js_imports=("replicate",),
+        http_hosts=("api.replicate.com",),
     ),
     ApiCatalogEntry(
         id="mistral",
@@ -183,7 +278,10 @@ _CATALOG: tuple[ApiCatalogEntry, ...] = (
     ApiCatalogEntry(
         id="cohere",
         name="Cohere",
-        spec_url="",
+        spec_url=(
+            "https://raw.githubusercontent.com/cohere-ai/cohere-developer-experience/"
+            "main/cohere-openapi.yaml"
+        ),
         python_packages=("cohere",),
         python_imports=("cohere",),
     ),
@@ -253,6 +351,8 @@ _CATALOG: tuple[ApiCatalogEntry, ...] = (
         ),
         python_packages=("twilio",),
         python_imports=("twilio",),
+        npm_packages=("twilio",),
+        js_imports=("twilio",),
     ),
     ApiCatalogEntry(
         id="sendgrid",
@@ -273,6 +373,9 @@ _CATALOG: tuple[ApiCatalogEntry, ...] = (
         ),
         python_packages=("slack_sdk", "slack-sdk", "slackclient"),
         python_imports=("slack_sdk", "slack"),
+        npm_packages=("@slack/web-api", "@slack/bolt", "slack"),
+        js_imports=("@slack/web-api", "@slack/bolt"),
+        http_hosts=("slack.com/api",),
     ),
     ApiCatalogEntry(
         id="discord",
@@ -342,6 +445,21 @@ _CATALOG: tuple[ApiCatalogEntry, ...] = (
         ),
         python_packages=("PyGithub", "pygithub"),
         python_imports=("github",),
+        npm_packages=(
+            "@octokit/rest",
+            "@octokit/core",
+            "@octokit/graphql",
+            "@octokit/request",
+            "octokit",
+            "@actions/github",
+        ),
+        js_imports=(
+            "@octokit/rest",
+            "@octokit/core",
+            "octokit",
+            "next-auth/providers/github",
+        ),
+        http_hosts=("api.github.com",),
     ),
     ApiCatalogEntry(
         id="circleci",
@@ -353,14 +471,17 @@ _CATALOG: tuple[ApiCatalogEntry, ...] = (
     ApiCatalogEntry(
         id="gitlab",
         name="GitLab",
-        spec_url="",
+        spec_url=(
+            "https://raw.githubusercontent.com/gitlabhq/gitlabhq/master/doc/api/"
+            "openapi/openapi_v3.yaml"
+        ),
         python_packages=("python-gitlab",),
         python_imports=("gitlab",),
     ),
     ApiCatalogEntry(
         id="bitbucket",
         name="Bitbucket",
-        spec_url="",
+        spec_url="https://api.bitbucket.org/swagger.json",
         python_packages=("atlassian-python-api",),
         python_imports=("atlassian",),
     ),
@@ -503,7 +624,7 @@ _CATALOG: tuple[ApiCatalogEntry, ...] = (
     ApiCatalogEntry(
         id="auth0",
         name="Auth0",
-        spec_url="",
+        spec_url="https://auth0.com/docs/api/management/openapi.json",
         python_packages=("auth0-python",),
         python_imports=("auth0",),
     ),
@@ -650,7 +771,7 @@ _CATALOG: tuple[ApiCatalogEntry, ...] = (
     ApiCatalogEntry(
         id="neon",
         name="Neon",
-        spec_url="",
+        spec_url="https://neon.tech/api_spec/release/v2.json",
         python_packages=("neon-api", "neonize"),
         python_imports=("neon_api",),
     ),
@@ -763,16 +884,23 @@ _CATALOG: tuple[ApiCatalogEntry, ...] = (
     ApiCatalogEntry(
         id="sentry",
         name="Sentry",
-        spec_url="",
+        spec_url=(
+            "https://raw.githubusercontent.com/getsentry/sentry-api-schema/main/"
+            "openapi-derefed.json"
+        ),
         python_packages=("sentry-sdk",),
         python_imports=("sentry_sdk",),
+        npm_packages=("@sentry/node", "@sentry/nextjs", "@sentry/react", "@sentry/browser"),
+        js_imports=("@sentry/node", "@sentry/nextjs", "@sentry/react", "@sentry/browser"),
     ),
     ApiCatalogEntry(
         id="posthog",
         name="PostHog",
-        spec_url="",
+        spec_url="https://app.posthog.com/api/schema/?format=json",
         python_packages=("posthog",),
         python_imports=("posthog",),
+        npm_packages=("posthog-node", "posthog-js", "posthog-react-native"),
+        js_imports=("posthog-node", "posthog-js"),
     ),
     ApiCatalogEntry(
         id="mixpanel",

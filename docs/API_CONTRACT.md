@@ -27,6 +27,7 @@ Query: `scope=workspace` (default) | `scope=all`.
     "last_checked": null,
     "open_change_count": 0,
     "mode": "live",
+    "source": "detected",
     "repo": "myorg/billing-app",
     "spec_url": "https://raw.githubusercontent.com/openai/openai-openapi/master/openapi.yaml"
   }
@@ -34,6 +35,8 @@ Query: `scope=workspace` (default) | `scope=all`.
 ```
 
 `mode` is `"demo"` (Bump spec) or `"live"` (Check now). Do not mix demo bumps with live polls on the same API id.
+
+`source` is optional: `"detected"` (catalog auto-detect on connect), `"manual"` (created via `POST /apis`), or `"seed"` (local demo harness). Workspace scope hides seed/demo harness unless `INCLUDE_DEMO_APIS=true`.
 
 ### `POST /apis`
 Watch a new API.
@@ -51,13 +54,15 @@ Manually trigger a spec poll now ("Check now" button). Response:
   "checked": true,
   "new_version": "2026-07-01",
   "changes_detected": 0,
-  "baseline": true
+  "baseline": true,
+  "unchanged": false
 }
 ```
 
 - `new_version` is the stored version string when the fetched fingerprint differs from the latest stored version; otherwise `null` (no store).
 - `changes_detected` is the number of breaking-change docs created for this poll.
 - `baseline: true` means this was a **first-run (or live re-)baseline**: the spec was stored, but breaking-change detection was skipped (`changes_detected` is always `0`). Live APIs (`mode: "live"`) only diff full-spec-to-full-spec — a tiny/demo prior accidentally attached to a live API is treated as no baseline and replaced quietly. Subsequent polls that differ from a real baseline create changes as usual (`baseline: false`).
+- `unchanged: true` means the fetched OpenAPI fingerprint matches the latest stored version (no new upstream store). Check still runs a **consumer SDK audit** (e.g. `openai==0.28` in the checkout) and may set `changes_detected > 0` even when the publisher document is unchanged.
 
 ---
 
@@ -270,11 +275,13 @@ Current connected repo, or `null`.
 ```
 
 ### `POST /repos/connect`
-Bind a repo as the workspace target. Request: `{ "full_name": "myorg/billing-app", "repo_path": "/optional/local/checkout" }`.
+Bind a repo as the workspace target (connect **or switch**). Request: `{ "full_name": "myorg/billing-app", "repo_path": "/optional/local/checkout" }`.
+
+Calling again with a different `full_name` replaces the previous binding — there is no separate switch endpoint. `GET /settings`, `GET /apis` (`scope=workspace`), and `GET /changes` (`scope=workspace`) all reflect the newly connected repo after a successful response.
 
 When the App is configured, `full_name` must appear in `GET /repos`. Does **not** stamp every watched API onto the new repo (avoids attaching `stripe-demo` / seeded leftovers). Detection stamps only matched catalog APIs.
 
-After connect succeeds, SelfPI **auto-detects third-party APIs** from the local checkout (`repo_path` → `REPO_PATH` → `demo-consumer/` when present) using the Python catalog in `backend/detector/catalog.py` (90+ vendors: Stripe, OpenAI, Twilio, GitHub, Slack, AWS, Datadog, Supabase, …). Matching is recall-first on `import` / `from` and dependency manifests. For each **watchable** hit (has a public OpenAPI URL), ensures a live watched API with that id. Catalog hits without a spec URL are returned in `unwatchable` and are not ensured. Undetected catalog APIs previously bound to this repo are detached (repo cleared). Never removes `stripe-demo`.
+After connect succeeds, SelfPI **auto-detects third-party APIs** from the local checkout (`repo_path` → `REPO_PATH` → clone under `.cache/checkouts/`) using the catalog in `backend/detector/catalog.py`. Matching is recall-first across **Python** (`import` / manifests) and **TypeScript/JavaScript** (`package.json`, ESM/CJS imports, and raw HTTP host strings such as `api.github.com`). For each **watchable** hit (has a public OpenAPI URL), ensures a live watched API with that id. Catalog hits without a spec URL are returned in `unwatchable` and are not ensured. Undetected catalog APIs previously bound to this repo are detached (repo cleared). Never removes `stripe-demo`.
 
 Response: connected repo object plus `detected_apis` / `unwatchable`:
 

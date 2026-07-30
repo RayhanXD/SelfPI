@@ -34,6 +34,8 @@ export interface ApiSummary {
   spec_url?: string | null;
   /** "demo" = Bump spec; "live" = Check now */
   mode?: "demo" | "live" | string | null;
+  /** "detected" | "manual" | "seed" — how the watched API was created */
+  source?: string | null;
 }
 
 export interface SettingsResponse {

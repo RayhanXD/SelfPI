@@ -1,0 +1,6 @@
+{
+  "name": "octokit-app",
+  "dependencies": {
+    "@octokit/rest": "^21.0.0"
+  }
+}

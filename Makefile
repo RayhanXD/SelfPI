@@ -72,7 +72,7 @@ $(BACKEND)/.env:
 # --- mongo -----------------------------------------------------------------
 
 ensure-mongo: $(PYTHON) $(BACKEND)/.env
-	@if cd $(BACKEND) && $(PYTHON) -m db.check_mongo >/dev/null 2>&1; then \
+	@if (cd $(BACKEND) && $(PYTHON) -m db.check_mongo >/dev/null 2>&1); then \
 		echo "→ MongoDB OK"; \
 	else \
 		echo "→ MongoDB not reachable — starting local mongod…"; \

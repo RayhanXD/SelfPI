@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.responses import JSONResponse, Response
 
@@ -19,6 +21,8 @@ from db.repos import connect_repo, connected_summary, disconnect_repo, get_conne
 from db.settings import get_settings
 from detector import detect_and_ensure
 from patcher.github import GitHubAppClient
+
+logger = logging.getLogger("selfpi.repos")
 
 router = APIRouter(prefix="/repos", tags=["repos"])
 
@@ -116,6 +120,7 @@ def list_accessible_repos(
     try:
         raw = client.list_installation_repos()
     except Exception as exc:
+        logger.exception("GET /repos failed for installation %s", client.installation_id)
         raise HTTPException(
             status_code=502,
             detail={"error": {"code": "github_list_failed", "message": str(exc)}},

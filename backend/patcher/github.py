@@ -18,6 +18,9 @@ except ImportError:  # pragma: no cover
 class GitHubAppClient:
     """Minimal GitHub App API for opening fix PRs."""
 
+    # GitHub can be slow/flaky from some networks; short timeouts surface as 502s.
+    _HTTP_TIMEOUT = 30.0
+
     def __init__(
         self,
         *,
@@ -57,7 +60,7 @@ class GitHubAppClient:
                 "GitHub App not configured (GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY)"
             )
         headers = self._auth_headers(self._app_jwt())
-        with httpx.Client(timeout=10.0, headers=headers) as client:
+        with httpx.Client(timeout=self._HTTP_TIMEOUT, headers=headers) as client:
             resp = client.get(f"{self.api_url}/app")
             resp.raise_for_status()
             return resp.json()
@@ -78,7 +81,7 @@ class GitHubAppClient:
         headers = self._auth_headers(self._installation_token())
         repos: list[dict[str, Any]] = []
         page = 1
-        with httpx.Client(timeout=10.0, headers=headers) as client:
+        with httpx.Client(timeout=self._HTTP_TIMEOUT, headers=headers) as client:
             while True:
                 resp = client.get(
                     f"{self.api_url}/installation/repositories",
@@ -280,7 +283,7 @@ class GitHubAppClient:
             raise RuntimeError("GitHub App installation id is required")
 
         headers = self._auth_headers(self._app_jwt())
-        with httpx.Client(timeout=10.0, headers=headers) as client:
+        with httpx.Client(timeout=self._HTTP_TIMEOUT, headers=headers) as client:
             resp = client.post(
                 f"{self.api_url}/app/installations/{self.installation_id}/access_tokens"
             )

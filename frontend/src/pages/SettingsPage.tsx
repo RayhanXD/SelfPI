@@ -5,23 +5,25 @@ import { EmptyState, ErrorState, SkeletonRows } from "../components/EmptyState";
 import { api, resolveApiUrl } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useAsync } from "../lib/useAsync";
+import { useWorkspace } from "../lib/workspace";
 import type { InstallationRepo, SettingsResponse } from "../types/api";
 
 export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { reload: reloadAuth, logout, loginHrefFor } = useAuth();
+  const { revision, switchRepo, disconnect } = useWorkspace();
   const {
     data: apis,
     error: apisError,
     loading: apisLoading,
     reload: reloadApis,
-  } = useAsync(() => api.listApis(), []);
+  } = useAsync(() => api.listApis(), [revision]);
   const {
     data: settings,
     error: settingsError,
     loading: settingsLoading,
     reload: reloadSettings,
-  } = useAsync(() => api.getSettings(), []);
+  } = useAsync(() => api.getSettings(), [revision]);
 
   const [repos, setRepos] = useState<InstallationRepo[] | null>(null);
   const [reposError, setReposError] = useState<string | null>(null);
@@ -204,7 +206,7 @@ export function SettingsPage() {
     setActionError(null);
     setActionOk(null);
     try {
-      const doc = await api.connectRepo(selected);
+      const doc = await switchRepo(selected);
       const detected = doc.detected_apis?.length
         ? ` Detected: ${doc.detected_apis.join(", ")}.`
         : " No catalog APIs detected in the local checkout.";
@@ -232,7 +234,7 @@ export function SettingsPage() {
     setActionError(null);
     setActionOk(null);
     try {
-      await api.disconnectRepo();
+      await disconnect();
       setActionOk("Disconnected repo");
       setSelected("");
       await refreshAll();

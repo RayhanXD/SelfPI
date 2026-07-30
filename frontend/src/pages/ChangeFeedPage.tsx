@@ -5,6 +5,7 @@ import { StatusPill } from "../components/StatusPill";
 import { api } from "../lib/api";
 import { changeStatusLabel, changeStatusTone } from "../lib/status";
 import { useAsync } from "../lib/useAsync";
+import { useWorkspace } from "../lib/workspace";
 import type { ChangeStatus } from "../types/api";
 
 const FILTERS: Array<{ value: ChangeStatus | ""; label: string }> = [
@@ -18,6 +19,7 @@ const FILTERS: Array<{ value: ChangeStatus | ""; label: string }> = [
 
 export function ChangeFeedPage() {
   const [params, setParams] = useSearchParams();
+  const { revision } = useWorkspace();
   const apiId = params.get("api_id") ?? "";
   const status = (params.get("status") ?? "") as ChangeStatus | "";
 
@@ -27,7 +29,7 @@ export function ChangeFeedPage() {
         api_id: apiId || undefined,
         status: status || undefined,
       }),
-    [apiId, status],
+    [apiId, status, revision],
   );
 
   const setStatus = (next: ChangeStatus | "") => {
